@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.google.android.libraries.mapsplatform.secrets.gradle.plugin)
     alias(libs.plugins.gradle.lombok)
     alias(libs.plugins.chaquopy)
+    alias(libs.plugins.kotlin.android)
 }
 
 secrets {
@@ -19,7 +20,7 @@ secrets {
 
 android {
     namespace = "dev.wander.android.opentagviewer"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "dev.wander.android.opentagviewer"
@@ -71,6 +72,9 @@ android {
     androidResources {
         // generateLocaleConfig = true
     }
+    kotlinOptions {
+        jvmTarget = "11"
+    }
 }
 
 lombok {
@@ -79,7 +83,8 @@ lombok {
 
 chaquopy {
     defaultConfig {
-        version = "3.12"
+        buildPython = listOf("/opt/local/bin/python3.11")
+        version = "3.11"
         pip {
             // SEE: https://chaquo.com/chaquopy/doc/current/android.html#android-requirements
             install("FindMy==0.7.6")
@@ -95,6 +100,7 @@ dependencies {
     implementation(libs.preference)
     implementation(libs.activity)
     implementation(libs.annotation)
+    implementation(libs.androidx.core.ktx)
     compileOnly(libs.projectlombok)
     implementation(libs.rxjava3)
 

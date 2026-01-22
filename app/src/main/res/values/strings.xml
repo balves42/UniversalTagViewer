@@ -33,6 +33,13 @@
     <string name="github">Github</string>
     <string name="developer_website">Developer Website</string>
     <string name="anisette_server_url">Anisette Server URL</string>
+
+    <string name="fmd_server_url" translatable="false">FMD Server URL</string>
+    <string name="fmd_email" translatable="false">FMD Server email</string>
+    <string name="fmd_password" translatable="false">FMD Server password</string>
+    <string name="url_to_an_fmd_server" translatable="false">Url to an <a href="">FMD</a> server</string>
+    <string name="fmd_url_change_warning" translatable="false">When you change your FMD URL, you will have to re-login on the App and revalidate it. Confirming this change will bring you to the login page.</string>
+
     <string name="url_to_an_anisette_server">Url to an <a href="">Anisette</a> server</string>
     <string name="this_is_not_a_valid_url">This is not a valid url</string>
     <string name="language">Language</string>
@@ -43,6 +50,9 @@
     <string name="lang_fr">Français</string>
     <string name="lang_ru">Русский</string>
     <string name="anisette_server_at_x_could_not_be_reached">Anisette server at %1$s could not be reached!</string>
+    <string name="fmd_server_at_x_could_not_be_reached" translatable="false">FMD server at %1$s could not be reached!</string>
+    <string name="fmd_server_at_x_needs_auth" translatable="false">FMD server at %1$s needs authentication!</string>
+    <string name="fmd_server_at_x_invalid_auth" translatable="false">FMD server at %1$s has invalid authentication!</string>
     <string name="welcome">Welcome !</string>
     <string name="login_failed_x">Login failed: %1$s</string>
     <string name="email_or_phone_number">Email or Phone Number</string>

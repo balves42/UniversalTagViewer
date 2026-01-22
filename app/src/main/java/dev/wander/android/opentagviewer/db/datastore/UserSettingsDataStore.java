@@ -17,6 +17,11 @@ public final class UserSettingsDataStore {
     private static RxDataStore<Preferences> PREFERENCES_DATA_STORE = null;
 
     public static final Preferences.Key<String> ANISETTE_SERVER_URL = PreferencesKeys.stringKey("anisette_server_url");
+    public static final Preferences.Key<String> FMD_SERVER_URL = PreferencesKeys.stringKey("fmd_server_url");
+    public static final Preferences.Key<String> FMD_EMAIL = PreferencesKeys.stringKey("fmd_email");
+    public static final Preferences.Key<String> FMD_PASSWORD = PreferencesKeys.stringKey("fmd_password");
+
+
     public static final Preferences.Key<String> LANGUAGE = PreferencesKeys.stringKey("language");
     public static final Preferences.Key<Boolean> USE_DARK_THEME = PreferencesKeys.booleanKey("use_dark_theme");
 

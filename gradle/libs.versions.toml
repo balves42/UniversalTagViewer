@@ -1,5 +1,5 @@
 [versions]
-agp = "8.8.2"
+agp = "8.9.1"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
@@ -32,6 +32,8 @@ googlePlacesLib = "4.1.0"
 desugarJdkLibs = "2.1.5"
 emojiPicker = "1.5.0"
 cronetEmbedded = "119.6045.31"
+kotlin = "2.2.0"
+coreKtx = "1.17.0"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -75,9 +77,11 @@ androidx-emoji = { group = "androidx.emoji2", name = "emoji2", version.ref = "em
 androidx-emoji-views = { group = "androidx.emoji2", name = "emoji2-views", version.ref = "emojiPicker" }
 androidx-emoji-views-helper = { group = "androidx.emoji2", name = "emoji2-views-helper", version.ref = "emojiPicker" }
 androidx-emoji-picker = { group = "androidx.emoji2", name = "emoji2-emojipicker", version.ref = "emojiPicker" }
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 google-android-libraries-mapsplatform-secrets-gradle-plugin = { id = "com.google.android.libraries.mapsplatform.secrets-gradle-plugin", version.ref = "googleAndroidLibrariesMapsplatformSecretsGradlePlugin" }
 chaquopy = { id = "com.chaquo.python", version.ref = "chaquopyVersion" }
 gradle-lombok = { id = "io.franzbecker.gradle-lombok", version.ref = "gradleLombokVersion" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }

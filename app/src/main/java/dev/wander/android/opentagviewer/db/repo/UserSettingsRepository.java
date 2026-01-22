@@ -2,6 +2,9 @@ package dev.wander.android.opentagviewer.db.repo;
 
 import static dev.wander.android.opentagviewer.db.datastore.UserSettingsDataStore.ANISETTE_SERVER_URL;
 import static dev.wander.android.opentagviewer.db.datastore.UserSettingsDataStore.ENABLE_DEBUG_DATA;
+import static dev.wander.android.opentagviewer.db.datastore.UserSettingsDataStore.FMD_EMAIL;
+import static dev.wander.android.opentagviewer.db.datastore.UserSettingsDataStore.FMD_PASSWORD;
+import static dev.wander.android.opentagviewer.db.datastore.UserSettingsDataStore.FMD_SERVER_URL;
 import static dev.wander.android.opentagviewer.db.datastore.UserSettingsDataStore.LANGUAGE;
 import static dev.wander.android.opentagviewer.db.datastore.UserSettingsDataStore.USE_DARK_THEME;
 
@@ -25,12 +28,18 @@ public class UserSettingsRepository {
         return userSettingsStore.data()
             .map(settings -> {
                 String anisetteServerUrl = settings.get(ANISETTE_SERVER_URL);
+                String fmdServerUrl = settings.get(FMD_SERVER_URL);
+                String fmdEmail = settings.get(FMD_EMAIL);
+                String fmdPassword = settings.get(FMD_PASSWORD);
                 String language = settings.get(LANGUAGE);
                 Boolean useDarkTheme = settings.get(USE_DARK_THEME);
                 Boolean enableDebugData = settings.get(ENABLE_DEBUG_DATA);
 
                 return UserSettings.builder()
                         .anisetteServerUrl(anisetteServerUrl)
+                        .fmdServerUrl(fmdServerUrl)
+                        .fmdEmail(fmdEmail)
+                        .fmdPassword(fmdPassword)
                         .language(language)
                         .useDarkTheme(useDarkTheme)
                         .enableDebugData(enableDebugData)
@@ -46,6 +55,9 @@ public class UserSettingsRepository {
             //String a = settings.get(ANISETTE_SERVER_URL);
 
             mutablePreferences.set(ANISETTE_SERVER_URL, userSettings.getAnisetteServerUrl());
+            mutablePreferences.set(FMD_SERVER_URL, userSettings.getFmdServerUrl());
+            mutablePreferences.set(FMD_EMAIL, userSettings.getFmdEmail());
+            mutablePreferences.set(FMD_PASSWORD, userSettings.getFmdPassword());
             mutablePreferences.set(LANGUAGE, userSettings.getLanguage());
             mutablePreferences.set(USE_DARK_THEME, userSettings.getUseDarkTheme());
             mutablePreferences.set(ENABLE_DEBUG_DATA, userSettings.getEnableDebugData());

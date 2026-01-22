@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat;
 
 import com.google.android.material.progressindicator.CircularProgressIndicator;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
+import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 
 import java.util.Arrays;
@@ -39,6 +40,7 @@ import dev.wander.android.opentagviewer.service.web.sidestore.AnisetteServerSugg
 import dev.wander.android.opentagviewer.ui.extensions.AppAutoCompleteTextView;
 import dev.wander.android.opentagviewer.util.validate.AnisetteUrlValidatorUtil;
 import dev.wander.android.opentagviewer.util.android.LocaleConfigUtil;
+import dev.wander.android.opentagviewer.util.validate.FMDUrlValidatorUtil;
 import io.reactivex.rxjava3.core.Completable;
 import lombok.NonNull;
 
@@ -47,10 +49,16 @@ public class SharedMainSettingsManager {
     private static final String TAG = SharedMainSettingsManager.class.getSimpleName();
     private final Consumer<Boolean> onAnisetteUrlInputTyped;
 
+    private final Consumer<Boolean> onFMDUrlInputTyped;
+
     private CircularProgressIndicator anisetteProgressIndicator = null;
 
     private ImageView anisetteSuccessIcon = null;
     private ImageView anisetteErrorIcon = null;
+
+    private CircularProgressIndicator fmdProgressIndicator = null;
+    private ImageView fmdSuccessIcon = null;
+    private ImageView fmdErrorIcon = null;
 
     private final AppCompatActivity context;
 
@@ -69,6 +77,12 @@ public class SharedMainSettingsManager {
     private final GithubRawUtilityFilesService github;
 
     private final Consumer<String> onNewAnisetteUrlSelectedCallback;
+    private final Consumer<String> onNewFMDUrlSelectedCallback;
+
+    private final Consumer<String> onNewFMDEmailSelectedCallback;
+
+    private final Consumer<String> onNewFMDPasswordSelectedCallback;
+
 
     private final UserSettings currentUserSettings;
 
@@ -76,16 +90,24 @@ public class SharedMainSettingsManager {
             @NonNull AppCompatActivity context,
             @NonNull Consumer<String> onLanguageSelected,
             @NonNull Consumer<String> onNewAnisetteUrlSelected,
+            @NonNull Consumer<String> onNewFMDUrlSelected,
+            @NonNull Consumer<String> onNewFMDEmailSelected,
+            @NonNull Consumer<String> onNewFMDPasswordSelected,
             @NonNull GithubRawUtilityFilesService github,
             @NonNull UserSettings currentUserSettings,
-            @NonNull Consumer<Boolean> onAnisetteUrlInputTyped
-    ) {
+            @NonNull Consumer<Boolean> onAnisetteUrlInputTyped,
+            @NonNull Consumer<Boolean> onFMDUrlInputTyped
+            ) {
         this.context = context;
         this.onLanguageSelectedCallback = onLanguageSelected;
         this.onNewAnisetteUrlSelectedCallback = onNewAnisetteUrlSelected;
+        this.onNewFMDUrlSelectedCallback = onNewFMDUrlSelected;
+        this.onNewFMDEmailSelectedCallback = onNewFMDEmailSelected;
+        this.onNewFMDPasswordSelectedCallback = onNewFMDPasswordSelected;
         this.github = github;
         this.currentUserSettings = currentUserSettings;
         this.onAnisetteUrlInputTyped = onAnisetteUrlInputTyped;
+        this.onFMDUrlInputTyped = onFMDUrlInputTyped;
     }
 
     public void setupProgressBars() {
@@ -95,6 +117,13 @@ public class SharedMainSettingsManager {
 
         this.anisetteSuccessIcon = this.context.findViewById(R.id.anisetteServerUrlOkIcon);
         this.anisetteErrorIcon = this.context.findViewById(R.id.anisetteServerUrlErrorIcon);
+
+        this.fmdProgressIndicator = this.context.findViewById(R.id.fmdServerUrlProgressIndicator);
+        this.fmdProgressIndicator.setVisibilityAfterHide(GONE);
+        this.fmdProgressIndicator.hide();
+
+        this.fmdSuccessIcon = this.context.findViewById(R.id.fmdServerUrlOkIcon);
+        this.fmdErrorIcon = this.context.findViewById(R.id.fmdServerUrlErrorIcon);
     }
 
     public void setupLanguageSwitchField() {
@@ -144,6 +173,73 @@ public class SharedMainSettingsManager {
         handler.postDelayed(languageDropdown::clearFocus, 10);
     }
 
+    public void setupFMDServerUrlField() {
+        MaterialAutoCompleteTextView urlTextInput = this.context.findViewById(R.id.fmdServerUrl);
+        TextInputEditText fmdEmailInput = this.context.findViewById(R.id.googleFmdEmailInput);
+        TextInputEditText fmdPasswordInput = this.context.findViewById(R.id.googleFmdPasswordInput);
+
+        urlTextInput.setText(this.currentUserSettings.getFmdServerUrl());
+
+        urlTextInput.setOnEditorActionListener((TextView v, int actionId, KeyEvent event) -> {
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                // check validity URL
+                var currentInput = v.getText().toString();
+                if (this.validateFMDUrl(currentInput)) {
+                    this.onNewFMDUrlSelectedCallback.accept(currentInput);
+                }
+            }
+            return true;
+        });
+
+        fmdEmailInput.setOnEditorActionListener((TextView v, int actionId, KeyEvent event) -> {
+            if (actionId == EditorInfo.IME_ACTION_NEXT) {
+                // check validity URL
+                var currentInput = v.getText().toString();
+                //if (this.validateFMDUrl(currentInput)) {
+                    this.onNewFMDEmailSelectedCallback.accept(currentInput);
+                //}
+            }
+            return true;
+        });
+
+        fmdPasswordInput.setOnEditorActionListener((TextView v, int actionId, KeyEvent event) -> {
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                // check validity URL
+                var currentInput = v.getText().toString();
+                //if (this.validateFMDUrl(currentInput)) {
+                    this.onNewFMDPasswordSelectedCallback.accept(currentInput);
+                //}
+            }
+            return true;
+        });
+
+
+        urlTextInput.addTextChangedListener(justWatchOnChanged((s, start, before, count) -> {
+            boolean result = validateFMDUrl(s.toString());
+            this.onFMDUrlInputTyped.accept(result);
+        }));
+
+
+//        var disp = this.github.getSuggestedServers().subscribe(suggestedServers -> {
+//            this.context.runOnUiThread(() -> {
+//                // add them to the suggested servers list!
+//
+//                Optional.ofNullable(this.currentUserSettings.getAnisetteServerUrl())
+//                        .ifPresent(urlOptions::add);
+//
+//                suggestedServers.getServers().stream()
+//                        .map(AnisetteServerSuggestion::getAddress)
+//                        .forEach(urlOptions::add);
+//
+//                String[] optionsArray = this.urlOptions.toArray(new String[0]);
+//                Arrays.sort(optionsArray);
+//
+//                urlTextInput.setSimpleItems(optionsArray);
+//
+//            });
+//        }, error -> Log.e(TAG, "Error occurred while fetching servers", error));
+    }
+
     public void setupAnisetteServerUrlField() {
         TextInputLayout urlTextInputContainer = this.context.findViewById(R.id.anisetteServerUrlContainer);
         MaterialAutoCompleteTextView urlTextInput = this.context.findViewById(R.id.anisetteServerUrl);
@@ -168,6 +264,7 @@ public class SharedMainSettingsManager {
             }
             return true;
         });
+
 
         urlTextInput.addTextChangedListener(justWatchOnChanged((s, start, before, count) -> {
             boolean result = validateAnisetteUrl(s.toString());
@@ -227,8 +324,55 @@ public class SharedMainSettingsManager {
         }
     }
 
+    public void showFMDTestStatus(FMD_TEST_STATUS status) {
+        switch (status) {
+            case OK:
+                this.fmdProgressIndicator.setVisibility(GONE);
+                this.fmdProgressIndicator.hide();
+                this.fmdSuccessIcon.setVisibility(VISIBLE);
+                this.fmdErrorIcon.setVisibility(GONE);
+                this.setFMDServerUrlTitleColor(true);
+                break;
+            case ERROR:
+            case NEED_AUTH:
+                this.fmdProgressIndicator.setVisibility(GONE);
+                this.fmdProgressIndicator.hide();
+                this.fmdSuccessIcon.setVisibility(GONE);
+                this.fmdErrorIcon.setVisibility(VISIBLE);
+                this.setFMDServerUrlTitleColor(false);
+                break;
+            case IN_FLIGHT:
+                this.fmdProgressIndicator.setVisibility(VISIBLE);
+                this.fmdProgressIndicator.show();
+                this.fmdSuccessIcon.setVisibility(GONE);
+                this.fmdErrorIcon.setVisibility(GONE);
+                this.setFMDServerUrlTitleColor(true);
+                break;
+            case NONE:
+                this.fmdProgressIndicator.setVisibility(GONE);
+                this.fmdProgressIndicator.hide();
+                this.fmdSuccessIcon.setVisibility(GONE);
+                this.fmdErrorIcon.setVisibility(GONE);
+                this.setFMDServerUrlTitleColor(true);
+                break;
+        }
+    }
+
     private void setAnisetteServerUrlTitleColor(boolean isOkColor) {
         TextView serverHeadingTitle = this.context.findViewById(R.id.selectAnisetteServerUrlTitle);
+
+        int color;
+        if (isOkColor) {
+            color = ContextCompat.getColor(this.context.getApplicationContext(), R.color.md_theme_outlineVariant_mediumContrast);
+        } else {
+            color = ContextCompat.getColor(this.context.getApplicationContext(), R.color.md_theme_error);
+        }
+
+        serverHeadingTitle.setTextColor(color);
+    }
+
+    private void setFMDServerUrlTitleColor(boolean isOkColor) {
+        TextView serverHeadingTitle = this.context.findViewById(R.id.selectFMDServerUrlTitle);
 
         int color;
         if (isOkColor) {
@@ -255,13 +399,41 @@ public class SharedMainSettingsManager {
         return true;
     }
 
+    public boolean validateFMDUrl(final String urlInput) {
+        TextInputLayout urlTextInputContainer = this.context.findViewById(R.id.fmdServerUrlContainer);
+
+        boolean isValidUrl = FMDUrlValidatorUtil.isValidFMDUrl(urlInput);
+        if (!isValidUrl) {
+            CharSequence error = this.context.getResources().getString(R.string.this_is_not_a_valid_url);
+            urlTextInputContainer.setError(error);
+            this.setFMDServerUrlTitleColor(false);
+            return false;
+        }
+        urlTextInputContainer.setError(null);
+        this.showFMDTestStatus(SharedMainSettingsManager.FMD_TEST_STATUS.NONE);
+        return true;
+    }
+
     public void setAnisetteTextFieldError(final String error) {
         TextInputLayout urlTextInputContainer = this.context.findViewById(R.id.anisetteServerUrlContainer);
         urlTextInputContainer.setError(error);
     }
 
+    public void setFMDTextFieldError(final String error) {
+        TextInputLayout urlTextInputContainer = this.context.findViewById(R.id.fmdServerUrlContainer);
+        urlTextInputContainer.setError(error);
+    }
+
     public void setAnisetteTextFieldError(final int stringId, Object... formatArgs) {
         TextInputLayout urlTextInputContainer = this.context.findViewById(R.id.anisetteServerUrlContainer);
+
+        urlTextInputContainer.setError(
+                this.context.getResources().getString(stringId, formatArgs)
+        );
+    }
+
+    public void setFMDTextFieldError(final int stringId, Object... formatArgs) {
+        TextInputLayout urlTextInputContainer = this.context.findViewById(R.id.fmdServerUrlContainer);
 
         urlTextInputContainer.setError(
                 this.context.getResources().getString(stringId, formatArgs)
@@ -285,5 +457,13 @@ public class SharedMainSettingsManager {
         OK,
         ERROR,
         NONE;
+    }
+
+    public enum FMD_TEST_STATUS {
+        IN_FLIGHT,
+        OK,
+        ERROR,
+        NONE,
+        NEED_AUTH;
     }
 }

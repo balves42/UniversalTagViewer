@@ -27,6 +27,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.os.LocaleListCompat;
@@ -36,6 +37,7 @@ import androidx.lifecycle.ViewModelProvider;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 
 import java.util.Objects;
 import java.util.Optional;
@@ -53,10 +55,12 @@ import dev.wander.android.opentagviewer.python.PythonAuthService.AuthMethodPhone
 import dev.wander.android.opentagviewer.python.PythonAuthService.PythonAuthResponse;
 import dev.wander.android.opentagviewer.service.web.AnisetteServerTesterService;
 import dev.wander.android.opentagviewer.service.web.CronetProvider;
+import dev.wander.android.opentagviewer.service.web.FMDServerTesterService;
 import dev.wander.android.opentagviewer.service.web.GitHubService;
 import dev.wander.android.opentagviewer.service.web.GithubRawUtilityFilesService;
 import dev.wander.android.opentagviewer.ui.login.Apple2FACodeInputManager;
 import dev.wander.android.opentagviewer.ui.settings.SharedMainSettingsManager;
+import dev.wander.android.opentagviewer.ui.settings.SharedMainSettingsManager.FMD_TEST_STATUS;
 import dev.wander.android.opentagviewer.util.android.AppCryptographyUtil;
 import dev.wander.android.opentagviewer.util.android.PropertiesUtil;
 import dev.wander.android.opentagviewer.viewmodel.AppleLoginViewModel;
@@ -90,6 +94,8 @@ public class AppleLoginActivity extends AppCompatActivity {
 
     private AnisetteServerTesterService anisetteServerTesterService;
 
+    private FMDServerTesterService fmdServerTesterService;
+
     private SharedMainSettingsManager sharedMainSettingsManager;
 
     private ActivityAppleLoginBinding binding;
@@ -99,6 +105,11 @@ public class AppleLoginActivity extends AppCompatActivity {
     private TextInputEditText emailOrPhoneInput;
 
     private TextInputEditText passwordInput;
+
+    private MaterialAutoCompleteTextView fmdServerUrl;
+    private TextInputEditText fmdEmailInput;
+    private TextInputEditText fmdPasswordInput;
+
 
     private Button loginButton;
 
@@ -138,12 +149,17 @@ public class AppleLoginActivity extends AppCompatActivity {
                 this,
                 this::updateLocale,
                 this::testAndSaveAnisetteUrl,
+                this::testFMDUrl,
+                this::testFMDUrl,
+                this::testFMDUrl,
                 github,
                 this.getUserSettings(),
-                this::onAnisetteUrlInputTyped
-        );
+                this::onAnisetteUrlInputTyped,
+                this::onFMDUrlInputTyped
+                );
 
         this.anisetteServerTesterService = new AnisetteServerTesterService(cronet);
+        this.fmdServerTesterService = new FMDServerTesterService(cronet);
 
         this.twoFactorEntryManager = new Apple2FACodeInputManager(this, this::on2FAAuthCodeFilled);
 
@@ -165,6 +181,8 @@ public class AppleLoginActivity extends AppCompatActivity {
         this.sharedMainSettingsManager.setupProgressBars();
         this.sharedMainSettingsManager.setupLanguageSwitchField();
         this.sharedMainSettingsManager.setupAnisetteServerUrlField();
+        this.sharedMainSettingsManager.setupFMDServerUrlField();
+
         this.twoFactorEntryManager.init();
 
         model.getUiState().observe(this, this::handleAuth);
@@ -172,7 +190,11 @@ public class AppleLoginActivity extends AppCompatActivity {
         this.emailOrPhoneInput = this.findViewById(R.id.email_or_phone_input_field);
         this.passwordInput = this.findViewById(R.id.password_input_field);
         this.loginButton = this.findViewById(R.id.login_button_main);
+        this.fmdServerUrl = this.findViewById(R.id.fmdServerUrl);
+        this.fmdEmailInput = this.findViewById(R.id.googleFmdEmailInput);
+        this.fmdPasswordInput = this.findViewById(R.id.googleFmdPasswordInput);
         this.twoFactorAuthChoiceBackButton = this.findViewById(R.id.twofactorauthchoice_back_button);
+        this.setFMDAuthVisibility(false);
     }
 
     @Override
@@ -214,9 +236,80 @@ public class AppleLoginActivity extends AppCompatActivity {
         }
     }
 
+    private void testFMDUrl(final String arg) {
+        this.sharedMainSettingsManager.showFMDTestStatus(FMD_TEST_STATUS.IN_FLIGHT);
+
+        @Nullable String newUrl = this.fmdServerUrl.getText() != null ? this.fmdServerUrl.getText().toString().trim() : "";
+        @Nullable String email = this.fmdEmailInput.getText() != null ? this.fmdEmailInput.getText().toString().trim() : "";
+        @Nullable String password = this.fmdPasswordInput.getText() != null ? this.fmdPasswordInput.getText().toString().trim() : "";
+
+        // verify that the server is live right now!
+        try {
+            var obs = this.fmdServerTesterService.getIndex(newUrl, email, password)
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(success -> {
+                        Log.d(TAG, "Got successful response from FMD server @ " + newUrl);
+
+                        this.getUserSettings().setFmdServerUrl(newUrl);
+                        this.getUserSettings().setFmdEmail(email);
+                        this.getUserSettings().setFmdPassword(password);
+                        this.saveSettings();
+
+                        this.binding.setAllowServerConfNext(true);
+                        this.sharedMainSettingsManager.showFMDTestStatus(FMD_TEST_STATUS.OK);
+                        this.sharedMainSettingsManager.setFMDTextFieldError(null);
+                    }, error -> {
+                        Log.d(TAG, "Got error response from FMD server @ " + newUrl, error);
+
+                        if (error instanceof retrofit2.HttpException) {
+                            retrofit2.HttpException http = (retrofit2.HttpException) error;
+                            if (http.code() == 401) {
+                                this.setFMDAuthVisibility(true);
+                                this.binding.setAllowServerConfNext(false);
+                                if (email.isEmpty() || password.isEmpty()) {
+                                    this.sharedMainSettingsManager.setFMDTextFieldError(R.string.fmd_server_at_x_needs_auth, newUrl);
+                                } else {
+                                    this.sharedMainSettingsManager.setFMDTextFieldError(R.string.fmd_server_at_x_invalid_auth, newUrl);
+                                }
+                                this.sharedMainSettingsManager.showFMDTestStatus(FMD_TEST_STATUS.NEED_AUTH);
+                            }
+                        } else {
+                            this.setFMDAuthVisibility(false);
+                            this.binding.setAllowServerConfNext(false);
+                            this.sharedMainSettingsManager.showFMDTestStatus(FMD_TEST_STATUS.ERROR);
+                            this.sharedMainSettingsManager.setFMDTextFieldError(R.string.fmd_server_at_x_could_not_be_reached, newUrl);
+                        }
+                    });
+
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to call fmd server", e);
+            this.binding.setAllowServerConfNext(false);
+            this.sharedMainSettingsManager.showFMDTestStatus(FMD_TEST_STATUS.ERROR);
+            this.sharedMainSettingsManager.setFMDTextFieldError(R.string.fmd_server_at_x_could_not_be_reached, newUrl);
+        }
+    }
+
     private void setCurrentStepText(final int stringResId) {
         TextView textView = this.findViewById(R.id.login_current_input_indicator);
         textView.setText(stringResId);
+    }
+
+    private void setFMDAuthVisibility(boolean show) {
+        TextView fmdEmailTitle = this.findViewById(R.id.googleFmdEmailTitle);
+        TextView fmdPasswordTitle = this.findViewById(R.id.googleFmdPasswordTitle);
+        TextInputEditText fmdEmailInput = this.findViewById(R.id.googleFmdEmailInput);
+        TextInputLayout fmdPasswordInput = this.findViewById(R.id.googleFmdPasswordLayout);
+        if (show) {
+            fmdEmailTitle.setVisibility(VISIBLE);
+            fmdPasswordTitle.setVisibility(VISIBLE);
+            fmdEmailInput.setVisibility(VISIBLE);
+            fmdPasswordInput.setVisibility(VISIBLE);
+        } else {
+            fmdEmailTitle.setVisibility(GONE);
+            fmdPasswordTitle.setVisibility(GONE);
+            fmdEmailInput.setVisibility(GONE);
+            fmdPasswordInput.setVisibility(GONE);
+        }
     }
 
     private void showLoading(final Integer stringResId) {
@@ -242,6 +335,12 @@ public class AppleLoginActivity extends AppCompatActivity {
     }
 
     private void onAnisetteUrlInputTyped(Boolean isValid) {
+        // typing overrides until explicitly validated by pressing the "confirm"
+        // checkmark to test the server
+        this.binding.setAllowServerConfNext(false);
+    }
+
+    private void onFMDUrlInputTyped(Boolean isValid) {
         // typing overrides until explicitly validated by pressing the "confirm"
         // checkmark to test the server
         this.binding.setAllowServerConfNext(false);

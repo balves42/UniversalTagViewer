@@ -33,6 +33,7 @@ import com.google.android.material.progressindicator.CircularProgressIndicatorSp
 import com.google.android.material.progressindicator.IndeterminateDrawable;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
+import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 
 import java.util.ArrayList;
@@ -94,6 +95,8 @@ public class SettingsActivity extends AppCompatActivity {
     private String editorSelectedLocateId = null;
 
     private String initialAnisetteUrl = null;
+    private String initialFMDUrl = null;
+
 
 
     @Override
@@ -118,6 +121,7 @@ public class SettingsActivity extends AppCompatActivity {
 
         this.currentSettings = this.settingsRepository.getUserSettings();
         this.initialAnisetteUrl = this.currentSettings.getAnisetteServerUrl();
+        this.initialFMDUrl = this.currentSettings.getFmdServerUrl();
 
         this.themeChoices.add(this.getString(R.string.use_system_default));
         this.themeChoices.add(this.getString(R.string.light_theme));
@@ -132,6 +136,8 @@ public class SettingsActivity extends AppCompatActivity {
         this.binding.setCurrentLanguage(Optional.ofNullable(this.currentSettings.getLanguage()).map(this::getPrettyLanguageName).orElse(this.getString(R.string.use_system_default)));
         this.binding.setOnClickAnisetteServerUrl(this::onClickEditAnisetteServerUrl);
         this.binding.setCurrentAnisetteServerUrl(this.currentSettings.getAnisetteServerUrl());
+        this.binding.setOnClickFMDServerUrl(this::onClickEditFMDServerUrl);
+        this.binding.setCurrentFMDServerUrl(this.currentSettings.getFmdServerUrl());
         this.binding.setIsDebugDataEnabled(Optional.ofNullable(this.currentSettings.getEnableDebugData()).orElse(false));
 
         if (this.getSupportActionBar() != null) {
@@ -341,6 +347,62 @@ public class SettingsActivity extends AppCompatActivity {
         manager.setDialog(dialog);
     }
 
+    private void onClickEditFMDServerUrl() {
+        View view = inflate(this, R.layout.anisette_server_url_input_dialog, null);
+
+        CircularProgressIndicatorSpec spec = new CircularProgressIndicatorSpec(view.getContext(), /* attrs= */ null, 0, com.google.android.material.R.style.Widget_Material3_CircularProgressIndicator_ExtraSmall);
+        final IndeterminateDrawable<CircularProgressIndicatorSpec> progressIndicatorDrawable = IndeterminateDrawable.createCircularDrawable(view.getContext(), spec);
+
+        // setup warning text
+        TextView warning = view.findViewById(R.id.anisette_url_change_warning);
+        warning.setText(R.string.fmd_url_change_warning);
+
+        // setup DECLINE button
+        final MaterialButton declineButton = view.findViewById(R.id.anisette_dialog_button_decline);
+
+        // setup ACCEPT button
+        final MaterialButton performTestButton = view.findViewById(R.id.anisette_dialog_button_test);
+        performTestButton.setText(getString(R.string.logout));
+        var manager = new AnisetteServerUrlDialogManager(performTestButton, progressIndicatorDrawable);
+
+        performTestButton.setIcon(null);
+        performTestButton.setEnabled(false);
+
+        final MaterialAutoCompleteTextView urlTextInput = view.findViewById(R.id.anisetteServerUrl);
+        final TextInputLayout urlTextInputContainer = view.findViewById(R.id.anisetteServerUrlContainer);
+
+        urlTextInput.setText(this.currentSettings.getFmdServerUrl());
+        urlTextInputContainer.setHelperText(getString(R.string.url_to_an_fmd_server));
+        urlTextInputContainer.setEndIconMode(TextInputLayout.END_ICON_NONE);
+
+        performTestButton.setOnClickListener(v -> {
+            Log.d(TAG, "Clicked fmd logout button");
+            final String currentUrlInput = urlTextInput.getText().toString();
+            Log.d(TAG, "Confirming new anisette URL after successful test");
+            performTestButton.setClickable(false); // disable, save current input
+            manager.getDialog().dismiss();
+            this.handleFMDUrlChangeSave(currentUrlInput);
+        });
+
+        urlTextInput.setOnEditorActionListener((TextView v, int actionId, KeyEvent event) -> {
+            var currentInput = v.getText().toString();
+            performTestButton.setEnabled(!currentInput.equals(initialFMDUrl));
+            return false;
+        });
+
+        declineButton.setOnClickListener(v -> {
+            Log.d(TAG, "Clicked fmd URL decline button");
+            manager.getDialog().cancel();
+        });
+
+        AlertDialog dialog = new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.fmd_server_url)
+                .setView(view)
+                .show();
+
+        manager.setDialog(dialog);
+    }
+
     private void handleAnisetteUrlChangeSave(final String validNewAnisetteUrl) {
         this.currentSettings.setAnisetteServerUrl(validNewAnisetteUrl);
         this.binding.setCurrentAnisetteServerUrl(validNewAnisetteUrl);
@@ -348,6 +410,20 @@ public class SettingsActivity extends AppCompatActivity {
 
         var originalUrl = Optional.ofNullable(this.initialAnisetteUrl);
         var finalUrl = Optional.ofNullable(this.currentSettings.getAnisetteServerUrl());
+
+        if (!originalUrl.equals(finalUrl)) {
+            // we need to force a re-login, unfortunately
+            this.performLogout();
+        }
+    }
+
+    private void handleFMDUrlChangeSave(final String newFMDUrl) {
+        this.currentSettings.setFmdServerUrl(newFMDUrl);
+        this.binding.setCurrentFMDServerUrl(newFMDUrl);
+        this.saveSettings();
+
+        var originalUrl = Optional.ofNullable(this.initialFMDUrl);
+        var finalUrl = Optional.ofNullable(this.currentSettings.getFmdServerUrl());
 
         if (!originalUrl.equals(finalUrl)) {
             // we need to force a re-login, unfortunately
