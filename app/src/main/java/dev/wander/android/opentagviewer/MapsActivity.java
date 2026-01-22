@@ -87,6 +87,8 @@ import dev.wander.android.opentagviewer.db.util.BeaconCombinerUtil;
 import dev.wander.android.opentagviewer.python.PythonAppleService;
 import dev.wander.android.opentagviewer.python.PythonAuthService;
 import dev.wander.android.opentagviewer.db.repo.UserDataRepository;
+import dev.wander.android.opentagviewer.service.web.CronetProvider;
+import dev.wander.android.opentagviewer.service.web.FMDServerService;
 import dev.wander.android.opentagviewer.ui.maps.TagCardHelper;
 import dev.wander.android.opentagviewer.ui.maps.TagListSwiperHelper;
 import dev.wander.android.opentagviewer.util.LogCollectorUtil;
@@ -138,6 +140,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private UserDataRepository userDataRepository;
 
     private PythonAppleService appleService = null;
+
+    private FMDServerService fmdServerService = null;
 
     private UserSettings userSettings;
 
@@ -758,6 +762,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
         // else stay here & restore the account & get the user settings
         var userSettings = userSettingsRepo.getUserSettings();
+
+        var cronet = CronetProvider.getInstance(this.getApplicationContext());
+        fmdServerService = new FMDServerService(cronet, userSettings);
 
         // Get Apple account
         var asyncAppleService = PythonAuthService.restoreAccount(userAuth.get(), userSettings.getAnisetteServerUrl())
