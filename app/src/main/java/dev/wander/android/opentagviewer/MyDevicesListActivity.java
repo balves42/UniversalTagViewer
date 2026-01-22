@@ -23,10 +23,17 @@ import java.util.stream.IntStream;
 import dev.wander.android.opentagviewer.data.model.BeaconInformation;
 import dev.wander.android.opentagviewer.data.model.BeaconLocationReport;
 import dev.wander.android.opentagviewer.databinding.ActivityMyDevicesListBinding;
+import dev.wander.android.opentagviewer.db.datastore.UserSettingsDataStore;
 import dev.wander.android.opentagviewer.db.repo.BeaconRepository;
+import dev.wander.android.opentagviewer.db.repo.UserSettingsRepository;
+import dev.wander.android.opentagviewer.db.repo.model.UserSettings;
 import dev.wander.android.opentagviewer.db.room.OpenTagViewerDatabase;
+import dev.wander.android.opentagviewer.service.web.CronetProvider;
+import dev.wander.android.opentagviewer.service.web.FMDServerService;
+import dev.wander.android.opentagviewer.service.web.FMDServerService.GoogleDeviceResponse;
 import dev.wander.android.opentagviewer.ui.compat.WindowPaddingUtil;
 import dev.wander.android.opentagviewer.ui.mydevices.DeviceListAdaptor;
+import dev.wander.android.opentagviewer.ui.settings.SharedMainSettingsManager;
 import dev.wander.android.opentagviewer.util.parse.BeaconDataParser;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Observable;
@@ -44,6 +51,11 @@ public class MyDevicesListActivity extends AppCompatActivity {
     private DeviceListAdaptor deviceListAdaptor;
 
     private boolean devicesListChanged = false;
+
+    private FMDServerService fmdServerService;
+
+    private UserSettingsRepository userSettingsRepo;
+
 
     private final ActivityResultLauncher<Intent> deviceInfoActivityLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -76,6 +88,12 @@ public class MyDevicesListActivity extends AppCompatActivity {
         }
 
         this.deviceListAdaptor = new DeviceListAdaptor(this.getResources(), this.beaconInfo, this.locations, this::onDeviceClicked);
+
+        var cronet = CronetProvider.getInstance(this.getApplicationContext());
+        this.userSettingsRepo = new UserSettingsRepository(UserSettingsDataStore.getInstance(this.getApplicationContext()));
+        this.fmdServerService = new FMDServerService(cronet, this.userSettingsRepo.getUserSettings());
+
+
 
         RecyclerView recyclerView = findViewById(R.id.my_devices_list);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));

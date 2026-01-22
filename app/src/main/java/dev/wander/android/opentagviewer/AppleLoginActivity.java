@@ -55,7 +55,7 @@ import dev.wander.android.opentagviewer.python.PythonAuthService.AuthMethodPhone
 import dev.wander.android.opentagviewer.python.PythonAuthService.PythonAuthResponse;
 import dev.wander.android.opentagviewer.service.web.AnisetteServerTesterService;
 import dev.wander.android.opentagviewer.service.web.CronetProvider;
-import dev.wander.android.opentagviewer.service.web.FMDServerTesterService;
+import dev.wander.android.opentagviewer.service.web.FMDServerService;
 import dev.wander.android.opentagviewer.service.web.GitHubService;
 import dev.wander.android.opentagviewer.service.web.GithubRawUtilityFilesService;
 import dev.wander.android.opentagviewer.ui.login.Apple2FACodeInputManager;
@@ -94,7 +94,7 @@ public class AppleLoginActivity extends AppCompatActivity {
 
     private AnisetteServerTesterService anisetteServerTesterService;
 
-    private FMDServerTesterService fmdServerTesterService;
+    private FMDServerService fmdServerService;
 
     private SharedMainSettingsManager sharedMainSettingsManager;
 
@@ -159,7 +159,7 @@ public class AppleLoginActivity extends AppCompatActivity {
                 );
 
         this.anisetteServerTesterService = new AnisetteServerTesterService(cronet);
-        this.fmdServerTesterService = new FMDServerTesterService(cronet);
+        this.fmdServerService = new FMDServerService(cronet, null);
 
         this.twoFactorEntryManager = new Apple2FACodeInputManager(this, this::on2FAAuthCodeFilled);
 
@@ -245,7 +245,7 @@ public class AppleLoginActivity extends AppCompatActivity {
 
         // verify that the server is live right now!
         try {
-            var obs = this.fmdServerTesterService.getIndex(newUrl, email, password)
+            var obs = this.fmdServerService.getHealth(newUrl, email, password)
                     .observeOn(AndroidSchedulers.mainThread())
                     .subscribe(success -> {
                         Log.d(TAG, "Got successful response from FMD server @ " + newUrl);
