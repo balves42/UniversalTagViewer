@@ -18,6 +18,11 @@ public interface GoogleDeviceDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void insertAll(GoogleDevice... devices);
 
+    @Query("SELECT * FROM GoogleDevices WHERE canonic_id = :id LIMIT 1")
+    GoogleDevice getGoogleDeviceById(String id);
+
     @Query("UPDATE GoogleDevices SET is_removed = 1, last_update = :now WHERE canonic_id = :canonicId")
     void setRemoved(String canonicId, long now);
+
+
 }

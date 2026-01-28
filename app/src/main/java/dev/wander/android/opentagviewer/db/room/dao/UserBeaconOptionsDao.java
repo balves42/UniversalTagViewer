@@ -8,6 +8,8 @@ import androidx.room.Query;
 import java.util.List;
 
 import dev.wander.android.opentagviewer.db.room.entity.UserBeaconOptions;
+import io.reactivex.rxjava3.core.Completable;
+import io.reactivex.rxjava3.core.Maybe;
 
 @Dao
 public interface UserBeaconOptionsDao {
@@ -19,4 +21,10 @@ public interface UserBeaconOptionsDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void insertAll(UserBeaconOptions... options);
+
+    @Query("SELECT * FROM UserBeaconOptions WHERE beacon_id = :beaconId LIMIT 1")
+    Maybe<UserBeaconOptions> getByBeaconId(String beaconId);
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    Completable insert(UserBeaconOptions options);
 }

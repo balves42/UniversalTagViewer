@@ -62,6 +62,8 @@ import dev.wander.android.opentagviewer.ui.compat.WindowPaddingUtil;
 import dev.wander.android.opentagviewer.util.parse.BeaconDataParser;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.annotations.NonNull;
+import io.reactivex.rxjava3.core.Maybe;
+import io.reactivex.rxjava3.schedulers.Schedulers;
 
 public class DeviceInfoActivity extends AppCompatActivity {
     private static final String TAG = DeviceInfoActivity.class.getSimpleName();
@@ -106,25 +108,42 @@ public class DeviceInfoActivity extends AppCompatActivity {
 
         this.beaconData = this.beaconRepo.getById(this.beaconId).blockingFirst();
 
+        binding = DataBindingUtil.setContentView(this, R.layout.activity_device_info);
 
         if (beaconData.getBeaconNamingRecord() != null) {
             this.beaconInformation = BeaconDataParser.parse(List.of(this.beaconData)).get(0);
             this.importData = this.beaconRepo.getImportById(this.beaconData.getOwnedBeaconInfo().importId).blockingFirst().orElseThrow();
             addInformationToUI();
         } else {
+            Maybe<Optional<UserBeaconOptions>> optsMaybe = beaconRepo.getUserBeaconOptionsByIdAsync(beaconId)
+                    .subscribeOn(Schedulers.io())
+                    .map(Optional::of)
+                    .defaultIfEmpty(Optional.empty())
+                    .toMaybe();
+
             beaconRepo.getGoogleDeviceByIdAsync(beaconData.getBeaconId())
-                    .observeOn(AndroidSchedulers.mainThread())
-                    .subscribe(googleDevice -> {
-                        this.beaconInformation = BeaconInformation.createFMDBeaconInformation(
+                    .subscribeOn(Schedulers.io())
+                    .zipWith(optsMaybe, (googleDevice, optsOpt) -> {
+                        BeaconInformation info = BeaconInformation.createFMDBeaconInformation(
                                 beaconId,
                                 "google:" + beaconId,
                                 googleDevice.emoji,
                                 googleDevice.name
                         );
+                        optsOpt.ifPresent(opts -> {
+                            info.setUserOverrideName(opts.uiName);
+                            info.setUserOverrideEmoji(opts.uiEmoji);
+                        });
+                        return info;
+                    })
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(info -> {
+                        this.beaconInformation = info;
+                        this.importData = null;
                         addInformationToUI();
-                    }, err -> {
-                        Log.e("DeviceInfo", "Failed loading Google device", err);
-                    });
+                    }, err ->
+                            Log.e("DeviceInfo", "Failed loading Google device/options", err)
+                    );
             this.importData = null;
         }
     }
@@ -133,7 +152,6 @@ public class DeviceInfoActivity extends AppCompatActivity {
         var format = DateFormat.getBestDateTimePattern(Locale.getDefault(), "hh:mm:ss, dd MMM yyyy");
         var timestampFormat = new SimpleDateFormat(format, Locale.getDefault());
 
-        binding = DataBindingUtil.setContentView(this, R.layout.activity_device_info);
         WindowPaddingUtil.insertUITopPadding(binding.getRoot());
 
         binding.setHandleClickBack(this::handleEndActivity);

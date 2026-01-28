@@ -23,6 +23,7 @@ import dev.wander.android.opentagviewer.db.room.entity.UserBeaconOptions;
 import dev.wander.android.opentagviewer.db.util.BeaconCombinerUtil;
 import dev.wander.android.opentagviewer.util.BeaconLocationReportHasher;
 import io.reactivex.rxjava3.core.Completable;
+import io.reactivex.rxjava3.core.Maybe;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import lombok.NonNull;
@@ -72,6 +73,7 @@ public class BeaconRepository {
     }
 
 
+
     /**
      * Insert all the data for a single import action.
      * <br>
@@ -96,6 +98,15 @@ public class BeaconRepository {
                 throw new RepoQueryException(e);
             }
         }).subscribeOn(Schedulers.io());
+    }
+
+    public Maybe<UserBeaconOptions> getUserBeaconOptionsByIdAsync(String beaconId) {
+        return db.userBeaconOptionsDao().getByBeaconId(beaconId);
+    }
+
+    public Maybe<GoogleDevice> getGoogleDeviceByIdAsync(String id) {
+        return Maybe.fromCallable(() -> db.googleDeviceDao().getGoogleDeviceById(id))
+                .subscribeOn(Schedulers.io());
     }
 
     public Observable<Optional<Import>> getImportById(final long importId) {

@@ -114,6 +114,7 @@ dependencies {
     implementation(libs.play.services.maps)
     implementation(libs.android.room)
     implementation(libs.android.room.paging)
+    implementation(libs.android.room.rxjava3)
     implementation(libs.fasterxml.jackson.core)
     implementation(libs.fasterxml.jackson.databind)
     implementation(libs.fasterxml.jackson.annotations)

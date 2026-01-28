@@ -51,6 +51,7 @@ android-room = { group = "androidx.room", name = "room-runtime", version.ref = "
 android-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "roomVersion" }
 android-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "roomVersion" }
 android-room-paging = { group = "androidx.room", name = "room-paging", version.ref = "roomVersion" }
+android-room-rxjava3 = { module = "androidx.room:room-rxjava3", version.ref = "roomVersion" }
 projectlombok = { group = "org.projectlombok", name = "lombok", version.ref = "lombokVersion" }
 fasterxml-jackson-core = { group = "com.fasterxml.jackson.core", name = "jackson-core", version.ref = "jacksonVersion" }
 fasterxml-jackson-databind = { group = "com.fasterxml.jackson.core", name = "jackson-databind", version.ref = "jacksonVersion" }
