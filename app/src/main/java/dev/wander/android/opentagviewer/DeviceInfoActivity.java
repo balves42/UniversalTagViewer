@@ -65,6 +65,7 @@ import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.core.Maybe;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 
+@SuppressLint("CheckResult")
 public class DeviceInfoActivity extends AppCompatActivity {
     private static final String TAG = DeviceInfoActivity.class.getSimpleName();
 
@@ -429,6 +430,8 @@ public class DeviceInfoActivity extends AppCompatActivity {
                 this.redirectToDeviceHistory();
             } else if (menuItem.getItemId() == R.id.device_delete) {
                 this.onClickDeviceDelete();
+            } else if (menuItem.getItemId() == R.id.restore_defaults) {
+                this.restoreDefaults();
             }
 
             return true;
@@ -472,6 +475,18 @@ public class DeviceInfoActivity extends AppCompatActivity {
                 .show();
     }
 
+    private void restoreDefaults() {
+        var dialog = new MaterialAlertDialogBuilder(this, com.google.android.material.R.style.ThemeOverlay_Material3_MaterialAlertDialog_Centered)
+                .setTitle(R.string.restore_defaults)
+                .setIcon(R.drawable.history_24px)
+                .setMessage(R.string.are_you_sure_you_want_to_restore_this_device_defaults)
+                .setPositiveButton(R.string.confirm, (dialog1, which) -> {
+                    Log.d(TAG, "Clicked to confirm device restore defaults. Now proceeding to delete overriden info...");
+                    this.handleDeviceRestoreDefaults();
+                }).setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
     private void handleDeviceRemoval() {
         final String beaconId = this.beaconId;
         var async = this.beaconRepo.markBeaconAsRemoved(beaconId)
@@ -486,4 +501,32 @@ public class DeviceInfoActivity extends AppCompatActivity {
                     Toast.makeText(this.getApplicationContext(), "Error occurred while trying to delete the beacon!", LENGTH_LONG).show();
                 });
     }
+
+    private void handleDeviceRestoreDefaults() {
+        final String id = this.beaconId;
+
+        beaconRepo.clearUserBeaconOverrides(id)
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(() -> {
+                    Log.d(TAG, "Overrides cleared for beaconId=" + id);
+
+                    // limpar em memória
+                    beaconInformation.setUserOverrideName(null);
+                    beaconInformation.setUserOverrideEmoji(null);
+
+                    // atualizar UI
+                    binding.setDeviceName(beaconInformation.getName()); // volta ao original
+                    visualiseDeviceEmoji();
+                    binding.setPageTitle(getDeviceNameForTitle());
+
+                    // isto faz com que o mapa saiba que precisa refrescar cards
+                    hasNameChanges = true;
+                    //Toast.makeText(getApplicationContext(), R.string.restored_defaults, Toast.LENGTH_SHORT).show();
+                }, err -> {
+                    Log.e(TAG, "Failed clearing overrides for beaconId=" + id, err);
+                    Toast.makeText(getApplicationContext(), "Erro a restaurar defaults", LENGTH_LONG).show();
+                });
+    }
+
+
 }

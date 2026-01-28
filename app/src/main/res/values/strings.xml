@@ -39,6 +39,9 @@
     <string name="fmd_password" translatable="false">FMD Server password</string>
     <string name="url_to_an_fmd_server" translatable="false">Url to an <a href="">FMD</a> server</string>
     <string name="fmd_url_change_warning" translatable="false">When you change your FMD URL, you will have to re-login on the App and revalidate it. Confirming this change will bring you to the login page.</string>
+    <string name="restore_defaults" translatable="false">Restore defaults</string>
+    <string name="are_you_sure_you_want_to_restore_this_device_defaults" translatable="false">Are you sure you want to restore this device default name and emoji? Once restored, you will lose all edited changes.</string>
+
 
     <string name="url_to_an_anisette_server">Url to an <a href="">Anisette</a> server</string>
     <string name="this_is_not_a_valid_url">This is not a valid url</string>

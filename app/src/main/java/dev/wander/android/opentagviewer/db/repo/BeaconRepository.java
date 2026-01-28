@@ -106,6 +106,13 @@ public class BeaconRepository {
         return db.userBeaconOptionsDao().getByBeaconId(beaconId);
     }
 
+    public Completable clearUserBeaconOverrides(String beaconId) {
+        return Completable
+                .fromAction(() -> db.userBeaconOptionsDao().deleteByBeaconIdSync(beaconId))
+                .subscribeOn(io.reactivex.rxjava3.schedulers.Schedulers.io());
+    }
+
+
     @Nullable
     public UserBeaconOptions getUserBeaconOptionsByIdSync(String beaconId) {
         return db.userBeaconOptionsDao().getByBeaconIdSync(beaconId);

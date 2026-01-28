@@ -30,4 +30,8 @@ public interface UserBeaconOptionsDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     Completable insert(UserBeaconOptions options);
+
+    @Query("DELETE FROM UserBeaconOptions WHERE beacon_id = :beaconId")
+    void deleteByBeaconIdSync(String beaconId);
+
 }
