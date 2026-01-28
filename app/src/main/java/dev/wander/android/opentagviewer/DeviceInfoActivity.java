@@ -7,6 +7,7 @@ import static android.widget.Toast.LENGTH_LONG;
 
 import static dev.wander.android.opentagviewer.util.android.TextChangedWatcherFactory.justWatchOnChanged;
 
+import android.annotation.SuppressLint;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -83,12 +84,10 @@ public class DeviceInfoActivity extends AppCompatActivity {
 
     private boolean hasNameChanges = false;
 
+    @SuppressLint("CheckResult")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        var format = DateFormat.getBestDateTimePattern(Locale.getDefault(), "hh:mm:ss, dd MMM yyyy");
-        var timestampFormat = new SimpleDateFormat(format, Locale.getDefault());
 
         this.beaconId = getIntent().getStringExtra("beaconId");
         Log.d(TAG, "Showing device info view for beaconId=" + this.beaconId);
@@ -106,8 +105,33 @@ public class DeviceInfoActivity extends AppCompatActivity {
                 OpenTagViewerDatabase.getInstance(getApplicationContext()));
 
         this.beaconData = this.beaconRepo.getById(this.beaconId).blockingFirst();
-        this.beaconInformation = BeaconDataParser.parse(List.of(this.beaconData)).get(0);
-        this.importData = this.beaconRepo.getImportById(this.beaconData.getOwnedBeaconInfo().importId).blockingFirst().orElseThrow();
+
+
+        if (beaconData.getBeaconNamingRecord() != null) {
+            this.beaconInformation = BeaconDataParser.parse(List.of(this.beaconData)).get(0);
+            this.importData = this.beaconRepo.getImportById(this.beaconData.getOwnedBeaconInfo().importId).blockingFirst().orElseThrow();
+            addInformationToUI();
+        } else {
+            beaconRepo.getGoogleDeviceByIdAsync(beaconData.getBeaconId())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(googleDevice -> {
+                        this.beaconInformation = BeaconInformation.createFMDBeaconInformation(
+                                beaconId,
+                                "google:" + beaconId,
+                                googleDevice.emoji,
+                                googleDevice.name
+                        );
+                        addInformationToUI();
+                    }, err -> {
+                        Log.e("DeviceInfo", "Failed loading Google device", err);
+                    });
+            this.importData = null;
+        }
+    }
+
+    private void addInformationToUI(){
+        var format = DateFormat.getBestDateTimePattern(Locale.getDefault(), "hh:mm:ss, dd MMM yyyy");
+        var timestampFormat = new SimpleDateFormat(format, Locale.getDefault());
 
         binding = DataBindingUtil.setContentView(this, R.layout.activity_device_info);
         WindowPaddingUtil.insertUITopPadding(binding.getRoot());
@@ -121,9 +145,15 @@ public class DeviceInfoActivity extends AppCompatActivity {
         binding.setOnClickDeviceName(this::handleEditDeviceName);
         binding.setOnClickDeviceEmoji(this::handleEditDeviceEmoji);
 
-        binding.setExportedAt(timestampFormat.format(new Date(this.importData.exportedAt)));
-        binding.setImportedAt(timestampFormat.format(new Date(this.importData.importedAt)));
-        binding.setExportedBy(this.importData.sourceUser);
+        if (importData != null) {
+            binding.setExportedAt(timestampFormat.format(new Date(this.importData.exportedAt)));
+            binding.setImportedAt(timestampFormat.format(new Date(this.importData.importedAt)));
+            binding.setExportedBy(this.importData.sourceUser);
+        } else {
+            binding.deviceSettingsExportedBy.getRoot().setVisibility(View.GONE);
+            binding.deviceSettingsExportedAt.getRoot().setVisibility(View.GONE);
+            binding.deviceSettingsImportedAt.getRoot().setVisibility(View.GONE);
+        }
 
         binding.setDeviceType(this.beaconInformation.isIpad() ? this.getString(R.string.ipad)
                 : this.beaconInformation.isAirTag() ? this.getString(R.string.airtag)
@@ -137,7 +167,7 @@ public class DeviceInfoActivity extends AppCompatActivity {
 
         binding.setNamingRecordCreationTime(
                 Optional.ofNullable(this.beaconInformation.getNamingRecordCreationTime())
-                         .map(d -> timestampFormat.format(new Date(d)))
+                        .map(d -> timestampFormat.format(new Date(d)))
                         .orElse("?"));
         binding.setNamingRecordModificationTime(
                 Optional.ofNullable(this.beaconInformation.getNamingRecordModifiedTime())
@@ -223,7 +253,6 @@ public class DeviceInfoActivity extends AppCompatActivity {
             }
         });
     }
-
     private void handleEndActivity() {
         if (this.hasNameChanges) {
             Intent data = new Intent();
