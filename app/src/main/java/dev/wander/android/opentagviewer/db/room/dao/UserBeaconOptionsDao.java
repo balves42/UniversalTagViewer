@@ -25,6 +25,9 @@ public interface UserBeaconOptionsDao {
     @Query("SELECT * FROM UserBeaconOptions WHERE beacon_id = :beaconId LIMIT 1")
     Maybe<UserBeaconOptions> getByBeaconId(String beaconId);
 
+    @Query("SELECT * FROM UserBeaconOptions WHERE beacon_id = :beaconId LIMIT 1")
+    UserBeaconOptions getByBeaconIdSync(String beaconId);
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     Completable insert(UserBeaconOptions options);
 }

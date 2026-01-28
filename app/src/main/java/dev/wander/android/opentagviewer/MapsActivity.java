@@ -86,6 +86,7 @@ import dev.wander.android.opentagviewer.db.repo.model.ImportData;
 import dev.wander.android.opentagviewer.db.repo.model.UserSettings;
 import dev.wander.android.opentagviewer.db.room.OpenTagViewerDatabase;
 import dev.wander.android.opentagviewer.db.room.entity.GoogleDevice;
+import dev.wander.android.opentagviewer.db.room.entity.UserBeaconOptions;
 import dev.wander.android.opentagviewer.db.util.BeaconCombinerUtil;
 import dev.wander.android.opentagviewer.python.PythonAppleService;
 import dev.wander.android.opentagviewer.python.PythonAuthService;
@@ -880,40 +881,33 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         this.addBeaconToCurrent(this.toGoogleBeaconInformationList(googleDevices));
     }
 
-    private List<BeaconInformation> toGoogleBeaconInformationList(final List<GoogleDevice> googleDevices) {
-        if (googleDevices == null || googleDevices.isEmpty()) {
-            return Collections.emptyList();
-        }
+    private List<BeaconInformation> toGoogleBeaconInformationList(List<GoogleDevice> devices) {
+        var out = new java.util.ArrayList<BeaconInformation>(devices.size());
 
-        final List<BeaconInformation> out = new ArrayList<>();
-        for (var gd : googleDevices) {
-            if (gd == null || gd.canonicId == null || gd.canonicId.isBlank()) {
-                continue;
-            }
+        for (GoogleDevice d : devices) {
+            String id = d.canonicId.trim();
+            if (id.isBlank()) continue;
 
-            final String beaconId = gd.canonicId.trim();
-
-            if (this.beacons.containsKey(beaconId)) {
-                continue;
-            }
-
-            final String name = (gd.name != null && !gd.name.isBlank())
-                    ? gd.name
-                    : ("Google Tag " + shortId(beaconId));
-
-            final String emoji = (gd.emoji != null && !gd.emoji.isBlank())
-                    ? gd.emoji
-                    : MapUtils.getDefaultFMDEmoji();
-
-            out.add(
-                    BeaconInformation.createFMDBeaconInformation(
-                            beaconId,
-                            "google:" + beaconId,
-                            emoji,
-                            name
-                    )
+            BeaconInformation info = BeaconInformation.createFMDBeaconInformation(
+                    id,
+                    "google:" + id,
+                    d.emoji,
+                    d.name
             );
+
+            // ✅ BD overlay (if it exists)
+            UserBeaconOptions opts = beaconRepo.getUserBeaconOptionsByIdSync(id);
+            if (opts != null) {
+                if (opts.uiName != null && !opts.uiName.isBlank()) {
+                    info.setUserOverrideName(opts.uiName);
+                }
+                if (opts.uiEmoji != null && !opts.uiEmoji.isBlank()) {
+                    info.setUserOverrideEmoji(opts.uiEmoji);
+                }
+            }
+            out.add(info);
         }
+
         return out;
     }
 

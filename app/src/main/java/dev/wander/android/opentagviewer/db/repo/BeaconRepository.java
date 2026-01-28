@@ -2,6 +2,8 @@ package dev.wander.android.opentagviewer.db.repo;
 
 import android.util.Log;
 
+import androidx.annotation.Nullable;
+
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -103,6 +105,12 @@ public class BeaconRepository {
     public Maybe<UserBeaconOptions> getUserBeaconOptionsByIdAsync(String beaconId) {
         return db.userBeaconOptionsDao().getByBeaconId(beaconId);
     }
+
+    @Nullable
+    public UserBeaconOptions getUserBeaconOptionsByIdSync(String beaconId) {
+        return db.userBeaconOptionsDao().getByBeaconIdSync(beaconId);
+    }
+
 
     public Maybe<GoogleDevice> getGoogleDeviceByIdAsync(String id) {
         return Maybe.fromCallable(() -> db.googleDeviceDao().getGoogleDeviceById(id))
