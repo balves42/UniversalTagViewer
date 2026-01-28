@@ -45,4 +45,14 @@ public class OwnedBeacon {
 
     @ColumnInfo(name = "is_removed")
     public boolean isRemoved;
+
+    public static OwnedBeacon createNewDefaultFMDOwnedBeacon(String beaconId) {
+        return new OwnedBeacon(
+                beaconId,
+                null,
+                "",      // Doesn't have plist/xml
+                "google-fmd",   //Any label
+                false
+        );
+    }
 }

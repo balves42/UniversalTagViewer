@@ -13,4 +13,7 @@ public final class MapUtils {
         return mapToOne.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, kvp -> List.of(kvp.getValue())));
     }
+    public static String getDefaultFMDEmoji() {
+        return "📍";
+    }
 }

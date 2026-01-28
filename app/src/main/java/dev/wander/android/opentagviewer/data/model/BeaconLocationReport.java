@@ -52,11 +52,11 @@ public class BeaconLocationReport {
     /**
      * Latitude of the location of this report.
      */
-    private double latitude;
+    public double latitude;
     /**
      * Longitude of the location of this report.
      */
-    private double longitude;
+    public double longitude;
     /**
      * Horizontal accuracy of the location of this report.
      */
@@ -65,4 +65,15 @@ public class BeaconLocationReport {
      * Status byte of the accessory as recorded by a device, as an integer.
      */
     private long status;
+
+    public BeaconLocationReport(long publishedAt, String description, long timestamp, long confidence, double latitude, double longitude, long horizontalAccuracy, long status) {
+        this.publishedAt = publishedAt;
+        this.description = description;
+        this.timestamp = timestamp;
+        this.confidence = confidence;
+        this.latitude = latitude;
+        this.longitude = longitude;
+        this.horizontalAccuracy = horizontalAccuracy;
+        this.status = status;
+    }
 }

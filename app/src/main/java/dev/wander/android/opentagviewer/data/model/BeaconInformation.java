@@ -1,5 +1,6 @@
 package dev.wander.android.opentagviewer.data.model;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -170,7 +171,52 @@ public class BeaconInformation {
     @Setter
     private String userOverrideEmoji;
 
+    public BeaconInformation(String beaconId, String namingRecordId, String originalEmoji, String originalName, Long namingRecordCreationTime, Long namingRecordModifiedTime, String namingRecordModifiedByDevice, String ownedBeaconPlistRaw, int batteryLevel, String model, String pairingDate, int productId, List<String> stableIdentifier, String systemVersion, int vendorId, String userOverrideName, String userOverrideEmoji) {
+        this.beaconId = beaconId;
+        this.namingRecordId = namingRecordId;
+        this.originalEmoji = originalEmoji;
+        this.originalName = originalName;
+        this.namingRecordCreationTime = namingRecordCreationTime;
+        this.namingRecordModifiedTime = namingRecordModifiedTime;
+        this.namingRecordModifiedByDevice = namingRecordModifiedByDevice;
+        this.ownedBeaconPlistRaw = ownedBeaconPlistRaw;
+        this.batteryLevel = batteryLevel;
+        this.model = model;
+        this.pairingDate = pairingDate;
+        this.productId = productId;
+        this.stableIdentifier = stableIdentifier;
+        this.systemVersion = systemVersion;
+        this.vendorId = vendorId;
+        this.userOverrideName = userOverrideName;
+        this.userOverrideEmoji = userOverrideEmoji;
+    }
 
+    public static BeaconInformation createFMDBeaconInformation(
+            String beaconId,
+            String namingRecordId,
+            String originalEmoji,
+            String originalName
+    ) {
+        return new BeaconInformation(
+                beaconId,
+                namingRecordId,
+                originalEmoji,
+                originalName,
+                null,
+                null,
+                null,
+                "",
+                0,
+                "Google FMD",
+                null,
+                0,
+                Collections.emptyList(),
+                "",
+                0,
+                null,
+                null
+        );
+    }
     public String getName() {
         return Optional.ofNullable(this.userOverrideName).orElse(this.originalName);
     }
@@ -183,7 +229,6 @@ public class BeaconInformation {
         var emoji = this.getEmoji();
         return emoji != null && !emoji.isBlank();
     }
-
 
     /**
      * Disclaimer: not clear if this is exhaustive enough of a check, but it might be

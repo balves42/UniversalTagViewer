@@ -12,6 +12,7 @@ import io.reactivex.rxjava3.core.Observable;
 import retrofit2.Retrofit;
 import retrofit2.adapter.rxjava3.RxJava3CallAdapterFactory;
 import retrofit2.converter.jackson.JacksonConverterFactory;
+import okhttp3.OkHttpClient;
 
 public class GitHubService {
     // https://square.github.io/retrofit/
@@ -31,6 +32,7 @@ public class GitHubService {
                 .addConverterFactory(JacksonConverterFactory.create())
                 .addCallAdapterFactory(RxJava3CallAdapterFactory.create())
                 .callFactory(CronetCallFactory.newBuilder(engine).build())
+                .client(new OkHttpClient())
                 .build();
 
         this.rawUsercontentService = retrofit.create(GitHubRawUsercontentService.class);

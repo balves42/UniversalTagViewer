@@ -12,6 +12,7 @@ import retrofit2.Retrofit;
 import retrofit2.adapter.rxjava3.RxJava3CallAdapterFactory;
 import retrofit2.converter.jackson.JacksonConverterFactory;
 import retrofit2.http.GET;
+import okhttp3.OkHttpClient;
 
 public class AnisetteServerTesterService {
 
@@ -27,6 +28,7 @@ public class AnisetteServerTesterService {
                 .addConverterFactory(JacksonConverterFactory.create())
                 .addCallAdapterFactory(RxJava3CallAdapterFactory.create())
                 .callFactory(CronetCallFactory.newBuilder(engine).build())
+                .client(new OkHttpClient())
                 .build();
 
         var service = retrofit.create(AnisetteServer.class);

@@ -8,16 +8,8 @@ import static android.view.View.VISIBLE;
 import static android.widget.Toast.LENGTH_LONG;
 import static android.widget.Toast.LENGTH_SHORT;
 
-import androidx.activity.result.ActivityResult;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-import androidx.core.view.WindowCompat;
-
-
+import android.Manifest;
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
@@ -28,7 +20,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.text.format.DateUtils;
 import android.util.Log;
-import android.util.Pair;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.FrameLayout;
@@ -40,10 +31,20 @@ import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.core.view.WindowCompat;
+
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.GoogleMap.OnMapClickListener;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptor;
@@ -51,7 +52,6 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.gms.maps.GoogleMap.OnMapClickListener;
 import com.google.android.libraries.places.api.Places;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -61,6 +61,7 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -76,111 +77,57 @@ import dev.wander.android.opentagviewer.databinding.ActivityMapsBinding;
 import dev.wander.android.opentagviewer.db.datastore.UserAuthDataStore;
 import dev.wander.android.opentagviewer.db.datastore.UserCacheDataStore;
 import dev.wander.android.opentagviewer.db.datastore.UserSettingsDataStore;
+import dev.wander.android.opentagviewer.db.repo.BeaconRepository;
 import dev.wander.android.opentagviewer.db.repo.UserAuthRepository;
+import dev.wander.android.opentagviewer.db.repo.UserDataRepository;
 import dev.wander.android.opentagviewer.db.repo.UserSettingsRepository;
 import dev.wander.android.opentagviewer.db.repo.model.AppleUserData;
+import dev.wander.android.opentagviewer.db.repo.model.ImportData;
 import dev.wander.android.opentagviewer.db.repo.model.UserSettings;
 import dev.wander.android.opentagviewer.db.room.OpenTagViewerDatabase;
-import dev.wander.android.opentagviewer.db.repo.BeaconRepository;
-import dev.wander.android.opentagviewer.db.repo.model.ImportData;
+import dev.wander.android.opentagviewer.db.room.entity.GoogleDevice;
 import dev.wander.android.opentagviewer.db.util.BeaconCombinerUtil;
 import dev.wander.android.opentagviewer.python.PythonAppleService;
 import dev.wander.android.opentagviewer.python.PythonAuthService;
-import dev.wander.android.opentagviewer.db.repo.UserDataRepository;
 import dev.wander.android.opentagviewer.service.web.CronetProvider;
 import dev.wander.android.opentagviewer.service.web.FMDServerService;
 import dev.wander.android.opentagviewer.ui.maps.TagCardHelper;
 import dev.wander.android.opentagviewer.ui.maps.TagListSwiperHelper;
+import dev.wander.android.opentagviewer.ui.maps.VectorImageGeneratorUtil;
 import dev.wander.android.opentagviewer.util.LogCollectorUtil;
 import dev.wander.android.opentagviewer.util.MapUtils;
 import dev.wander.android.opentagviewer.util.android.AppCryptographyUtil;
 import dev.wander.android.opentagviewer.util.android.PermissionUtil;
-import dev.wander.android.opentagviewer.ui.maps.VectorImageGeneratorUtil;
 import dev.wander.android.opentagviewer.util.parse.AppleZipImporterUtil;
 import dev.wander.android.opentagviewer.util.parse.BeaconDataParser;
 import dev.wander.android.opentagviewer.util.parse.ZipImporterException;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Observable;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import lombok.Data;
 
 /**
  * TODO: this whole thing is a bit of a godclass. Decouple it.
  */
+@SuppressLint("CheckResult")
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, OnMapClickListener, GoogleMap.OnMarkerClickListener, ActivityCompat.OnRequestPermissionsResultCallback {
+
     private static final String TAG = MapsActivity.class.getSimpleName();
-
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
-
     private static final int GOOGLE_LOGO_PADDING_BOTTOM_PX = 40;
-
     private static final int HOURS_TO_GO_BACK_24H = 24;
-
     private static final long WAIT_BEFORE_REFETCH = 1000 * 60; // 1 MINUTE
-
     private static final long ONE_HOUR_IN_MS = 1000 * 60 * 60; // 1 HOUR
-
     private static final float CAMERA_ON_MAP_INITIAL_ZOOM = 16.0f; // see: https://developers.google.com/maps/documentation/android-sdk/views#zoom
-
     private static final float MARKER_ZINDEX_DEFAULT = 0.0f;
-
     private static final float MARKER_ZINDEX_TOP = 10.0f;
-
-    private GoogleMap map;
-
-    private ActivityMapsBinding binding;
-
-    private BeaconRepository beaconRepo;
-
-    private UserSettingsRepository userSettingsRepo;
-
-    private UserAuthRepository userAuthRepo;
-
-    private UserDataRepository userDataRepository;
-
-    private PythonAppleService appleService = null;
-
-    private FMDServerService fmdServerService = null;
-
-    private UserSettings userSettings;
-
-    private FusedLocationProviderClient fusedLocationClient = null;
-
-    private Geocoder geocoder = null;
-
     private final Map<String, BeaconData> beacons = new ConcurrentHashMap<>();
-
     private final Map<String, List<BeaconLocationReport>> beaconLocations = new ConcurrentHashMap<>();
-
     private final Map<String, Marker> currentMarkers = new ConcurrentHashMap<>();
-
-    private Marker lastFocusedMarker = null;
-
     private final Map<String, FrameLayout> dynamicCardsForTag = new ConcurrentHashMap<>();
-
-    private boolean initialFetchComplete = false;
-    private long last24HHistoryFetchAt = 0L;
-
-    private TagListSwiperHelper tagListSwiperHelper = null;
-
     private final Handler refreshSchedulerHandler = new Handler();
-    private Runnable nextLocationRefreshTask = null;
-
-    private Optional<UserMapCameraPosition> lastCameraPositionOnLoad;
-
-    private int windowWidth = 0;
-
-    private final ActivityResultLauncher<Intent> pickZipActivityLauncher = registerForActivityResult(
-            new ActivityResultContracts.StartActivityForResult(),
-            (ActivityResult result) -> {
-                if (result.getResultCode() == RESULT_OK) {
-                    Intent data = result.getData();
-                    this.onImportFilePicked(data);
-                }
-            }
-    );
-
     private final ActivityResultLauncher<Intent> settingsEditActivityLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             (ActivityResult result) -> {
@@ -192,7 +139,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 }
             }
     );
-
     private final ActivityResultLauncher<Intent> deviceListActivityLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             (ActivityResult result) -> {
@@ -204,7 +150,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 }
             }
     );
-
     private final ActivityResultLauncher<Intent> deviceInfoActivityLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             (ActivityResult result) -> {
@@ -218,19 +163,82 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 }
             }
     );
-
-    private ActivityResultLauncher<Intent> exportLogsActivityLauncher = registerForActivityResult(
+    private final ActivityResultLauncher<Intent> exportLogsActivityLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             (ActivityResult result) -> {
                 if (result.getResultCode() == RESULT_OK) {
                     Intent data = result.getData();
-                    this.onExportLogsToLocationPicked(data);
+                    if (data != null) {
+                        this.onExportLogsToLocationPicked(data);
+                    }
+                }
+            }
+    );
+    private boolean pendingEnableMyLocation = false;
+    private GoogleMap map;
+    private BeaconRepository beaconRepo;
+    private UserSettingsRepository userSettingsRepo;
+    private UserAuthRepository userAuthRepo;
+    private UserDataRepository userDataRepository;
+    private PythonAppleService appleService = null;
+    private FMDServerService fmdServerService = null;
+    private UserSettings userSettings;
+    private FusedLocationProviderClient fusedLocationClient = null;
+    private Geocoder geocoder = null;
+    private Marker lastFocusedMarker = null;
+    private boolean initialFetchComplete = false;
+    private long last24HHistoryFetchAt = 0L;
+    private TagListSwiperHelper tagListSwiperHelper = null;
+    private Runnable nextLocationRefreshTask = null;
+    private Optional<UserMapCameraPosition> lastCameraPositionOnLoad;
+    private int windowWidth = 0;
+    private final ActivityResultLauncher<Intent> pickZipActivityLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            (ActivityResult result) -> {
+                if (result.getResultCode() == RESULT_OK) {
+                    Intent data = result.getData();
+                    this.onImportFilePicked(data);
                 }
             }
     );
 
-    private static void run() {
+    private static String shortId(final String id) {
+        if (id == null) return "";
+        final String t = id.trim();
+        return t.length() <= 6 ? t : t.substring(0, 6);
+    }
 
+    private static Map<String, List<BeaconLocationReport>> mergeReports(
+            final Map<String, List<BeaconLocationReport>> appleReports,
+            final Map<String, List<BeaconLocationReport>> googleReports
+    ) {
+        final Map<String, List<BeaconLocationReport>> out = new HashMap<>();
+
+        if (appleReports != null) {
+            for (Map.Entry<String, List<BeaconLocationReport>> e : appleReports.entrySet()) {
+                out.put(e.getKey(), e.getValue() != null ? new ArrayList<>(e.getValue()) : new ArrayList<>());
+            }
+        }
+
+        if (googleReports != null) {
+            for (Map.Entry<String, List<BeaconLocationReport>> e : googleReports.entrySet()) {
+                final String key = e.getKey();
+                final List<BeaconLocationReport> incoming = e.getValue() != null ? e.getValue() : Collections.emptyList();
+
+                final List<BeaconLocationReport> current = out.get(key);
+                if (current == null) {
+                    out.put(key, new ArrayList<>(incoming));
+                } else {
+                    current.addAll(incoming);
+                }
+            }
+        }
+
+        return out;
+    }
+
+    private boolean isAppleServiceInitialised() {
+        return this.appleService != null;
     }
 
     @Override
@@ -242,8 +250,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         this.checkApiKey();
 
-        this.binding = ActivityMapsBinding.inflate(getLayoutInflater());
-        setContentView(this.binding.getRoot());
+        ActivityMapsBinding binding = ActivityMapsBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
 
         this.userSettingsRepo = new UserSettingsRepository(
                 UserSettingsDataStore.getInstance(this.getApplicationContext()));
@@ -268,6 +276,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         this.setupTagScrollArea();
 
+        var cronet = CronetProvider.getInstance(this.getApplicationContext());
+        this.fmdServerService = new FMDServerService(cronet, this.userSettings);
+
+        // 1) Show devices that exist in cache
+        this.loadGoogleFromDbToUi();
+        
         var async = this.getLastCameraPosition()
             .subscribe(pos -> {
                 Log.d(TAG, "Got previous camera position to reset us to: " + pos);
@@ -286,10 +300,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
-        mapFragment.getMapAsync(this);
+        if (mapFragment != null) {
+            mapFragment.getMapAsync(this);
+        }
     }
-
-
 
     /**
      * Manipulates the map once available.
@@ -319,7 +333,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             map.setMapStyle(MapStyleOptions.loadRawResourceStyle(this.getApplicationContext(), R.raw.map_dark_style));
         }
 
-        this.enableMyLocation(false);
+        applyMyLocationIfPossible(false);
+
+        if (pendingEnableMyLocation && hasLocationPermission()) {
+            pendingEnableMyLocation = false;
+            applyMyLocationIfPossible(true);
+        }
     }
 
     @Override
@@ -353,11 +372,42 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     protected void onResume() {
         super.onResume();
-
-         // TODO: when a user changes their anisette URL in settings and returns here, this should be able to deal with querying the new URL
-
+        // TODO: when a user changes their anisette URL in settings and returns here, this should be able to deal with querying the new URL
         this.refreshIfAllowed();
         this.reSchedulePeriodicTagLocationRefresher();
+    }
+
+    private void loadGoogleFromDbToUi() {
+        this.beaconRepo.getAllGoogleDevices()
+                .map(this::toGoogleBeaconInformationList)
+                .doOnNext(this::addBeaconToCurrent)
+                .flatMap(__ -> this.beaconRepo.getLastLocationsForAll())
+                .doOnNext(last -> this.addBeaconLocationsToCurrent(MapUtils.toListOfOne(last)))
+                .flatMapCompletable(__ -> this.updateBeaconGeocodings())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(() -> {
+                    this.showLastDeviceLocations();
+                    Log.d("FMD", "Google cache loaded from BD to UI");
+                }, err -> Log.e("FMD", "Fail to load google cache from BD to UI", err));
+    }
+
+    private void refreshGoogleFromNetworkToDbAndUi() {
+        if (this.fmdServerService == null || this.fmdServerService.getGoogleDevices() == null) return;
+
+        // 1) Fetch device list
+        Disposable disposable = this.fetchAndStoreGoogleDevices()
+                .doOnNext(this::addGoogleBeaconsToCurrent)
+                // 2) fetch locations -> storeToLocationCache(LocationReport)
+                .flatMap(__ -> this.fmdServerService.getGoogleDevicesAsBeaconLocationReport()
+                        .onErrorReturnItem(Collections.emptyMap()))
+                .flatMap(this.beaconRepo::storeToLocationCache)
+                .doOnNext(this::addBeaconLocationsToCurrent)
+                .flatMapCompletable(__ -> this.updateBeaconGeocodings())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(() -> {
+                    this.showLastDeviceLocations();
+                    Log.d("FMD", "FMD devices updated");
+                }, err -> Log.e("FMD", "Failed to update FMD devices", err));
     }
 
     private void reSchedulePeriodicTagLocationRefresher() {
@@ -396,15 +446,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         Log.d(TAG, "Performing automatic scheduled refresh of data for all tags...");
         this.fetchAndUpdateCurrentBeacons();
         Log.d(TAG, "Automatic scheduled refresh complete! Next automatic refresh will be in " + WAIT_BEFORE_REFETCH + " ms");
-        //Toast.makeText(this, "Performing automatic periodic refresh...", LENGTH_SHORT).show();
     }
 
     public void onClickMoreSettings(View view)
     {
         Log.d(TAG, "Global more button was clicked");
-        ImageButton bttn = findViewById(R.id.button_more_settings);
+        ImageButton btn = findViewById(R.id.button_more_settings);
 
-        var popupMenu = new PopupMenu(this, bttn);
+        var popupMenu = new PopupMenu(this, btn);
         popupMenu.getMenuInflater().inflate(R.menu.global_map_more_menu, popupMenu.getMenu());
 
         // This item is conditionally visible (non-technical users probably don't need this)
@@ -533,46 +582,41 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void onImportFilePicked(Intent data) {
         Log.d(TAG, "File has been picked");
 
-        // combine them into the current list of beaconLocations & show this list
         var async = this.extractImportedData(data)
-            .flatMap(this.beaconRepo::addNewImport)
-            .doOnNext((importData) -> {
-                this.runOnUiThread(() -> {
-                    Toast.makeText(
-                            this,
-                            this.getString(R.string.loading_location_data_for_x_new_imported_devices, importData.getOwnedBeacons().size()),
+                .flatMap(this.beaconRepo::addNewImport)
+                .doOnNext(importData -> runOnUiThread(() -> Toast.makeText(
+                        this,
+                        this.getString(R.string.loading_location_data_for_x_new_imported_devices, importData.getOwnedBeacons().size()),
+                        LENGTH_LONG
+                ).show()))
+                .observeOn(Schedulers.computation())
+                .flatMap(importData ->
+                        // 1) Parse + add apple beacons
+                        BeaconDataParser.parseAsync(BeaconCombinerUtil.combine(importData))
+                                .doOnNext(this::addBeaconToCurrent)
+                                .map(__ -> importData)
+                )
+                .flatMap(importData -> {
+                    // 2) Fetch apple locations Apple (and save)
+                    Map<String, String> appleIdToPlist = importData.getOwnedBeacons().stream()
+                            .collect(Collectors.toMap(b -> b.id, b -> b.content));
+
+                    return this.appleService.getLastReports(appleIdToPlist, HOURS_TO_GO_BACK_24H)
+                            .flatMap(this.beaconRepo::storeToLocationCache)
+                            .doOnNext(this::addBeaconLocationsToCurrent)
+                            .map(__ -> importData);
+                })
+                .flatMapCompletable(__ -> this.updateBeaconGeocodings())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(() -> {
+                    this.showLastDeviceLocations(); // <-- shows apple immediately
+                    Log.i(TAG, "Apple import concluded and showed without refresh");
+                }, error -> {
+                    Log.e(TAG, "Error in apple import", error);
+                    Toast.makeText(this,
+                            R.string.error_occurred_while_importing_new_devices_try_to_restart_the_app_and_retry,
                             LENGTH_LONG).show();
                 });
-            })
-            .publish(storedBeacons ->
-            /*
-             * Note: this is a bit of a fork-join: https://stackoverflow.com/questions/48015796/using-rxjava-to-fork-into-tasks-and-combine-results
-             * May be too much of an optimization, but I figured I might as well try out the extent
-             * of what you can do with these RXJava observables as far as multithreading goes...
-             */
-                Observable.zip(
-                        storedBeacons.flatMap(beacons ->
-                            this.fetchLastReports(beacons.getOwnedBeacons().stream()
-                                    .collect(Collectors.toMap(b -> b.id, b -> b.content)), HOURS_TO_GO_BACK_24H)
-                        )
-                        .doOnNext(this::addBeaconLocationsToCurrent),
-                        storedBeacons.flatMap(beacons -> BeaconDataParser.parseAsync(BeaconCombinerUtil.combine(beacons)))
-                        .doOnNext(this::addBeaconToCurrent),
-                        Pair::create
-                )
-            )
-            .flatMapCompletable((__) -> this.updateBeaconGeocodings())
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe(() -> {
-                this.showLastDeviceLocations();
-                Log.i(TAG, "Finished visualising new location reports!");
-            }, error -> {
-                Log.e(TAG, "Error occurred while importing new devices!", error);
-                Toast.makeText(
-                        this,
-                        R.string.error_occurred_while_importing_new_devices_try_to_restart_the_app_and_retry,
-                        LENGTH_LONG).show();
-            });
     }
 
     private void onExportLogsToLocationPicked(@lombok.NonNull Intent data) {
@@ -778,15 +822,22 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .flatMap(BeaconDataParser::parseAsync)
                 .doOnNext(this::addBeaconToCurrent);
 
+        var asyncAllGoogleBeacons = this.beaconRepo.getAllGoogleDevices()
+                .map(this::toGoogleBeaconInformationList)
+                .doOnNext(this::addBeaconToCurrent);
+
+
         // get list of cached (previously fetched) locations
         // (might be empty or might not be present for all of them)
         var asyncAllLocations = this.beaconRepo.getLastLocationsForAll();
 
-        var asyncBeaconData = Observable.zip(asyncAllBeacons, asyncAllLocations, (allBeacons, allLatestLocations) -> {
-            // temporarily show cached beacon locations until we get the new ones!
-            this.addBeaconLocationsToCurrent(MapUtils.toListOfOne(allLatestLocations));
-            return allBeacons;
-        }).subscribeOn(Schedulers.computation())
+
+
+        var asyncBeaconData = Observable.zip(asyncAllBeacons, asyncAllGoogleBeacons, asyncAllLocations,
+                (allBeacons, allGoogleBeacons, allLatestLocations) -> {
+                    this.addBeaconLocationsToCurrent(MapUtils.toListOfOne(allLatestLocations));
+                    return allBeacons;
+                }).subscribeOn(Schedulers.computation())
         .observeOn(AndroidSchedulers.mainThread())
         .flatMap(allBeacons -> {
             // show the locations for all the devices that were already in the cache
@@ -798,11 +849,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         // initially show the cached locations (after we get those back from the DB)
         // afterwards try to fetch the latest location reports from the Apple servers
         // store those reports in the DB (cache) and then show the updated positions
-        var asyncCombo = Observable.zip(asyncAppleService, asyncBeaconData, (service, beacons) ->
-            // map to expected format:
-            this.fetchLastReports(
-                    beacons.stream().collect(Collectors.toMap(BeaconInformation::getBeaconId, BeaconInformation::getOwnedBeaconPlistRaw)))
-        ).flatMap(o -> o)
+        var asyncCombo = Observable.zip(asyncAppleService, asyncBeaconData, (service, allBeacons) -> {
+            var appleBeaconIdToPlist = allBeacons.stream()
+                    .filter(b -> b.getOwnedBeaconPlistRaw() != null && !b.getOwnedBeaconPlistRaw().isBlank())
+                    .collect(Collectors.toMap(BeaconInformation::getBeaconId, BeaconInformation::getOwnedBeaconPlistRaw));
+            return this.fetchLastReports(appleBeaconIdToPlist);
+        }).flatMap(o -> o)
         .doOnNext(this::addBeaconLocationsToCurrent)
         .flatMap(o -> this.updateBeaconGeocodings().andThen(Observable.just(o)))
         .subscribeOn(Schedulers.computation())
@@ -817,9 +869,91 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             this.initialFetchComplete = true;
             Log.e(TAG, "Error while restoring account and trying to get latest beacons", error);
             TagCardHelper.toggleRefreshLoadingAll(this.dynamicCardsForTag, false);
-            //Toast.makeText(this.getApplicationContext(), "Error while trying to fetch data for beacons", LENGTH_SHORT).show();
             // this error just happens every now and then. It's no big deal, we will retry automatically eventually...
         });
+    }
+
+    private void addGoogleBeaconsToCurrent(final List<GoogleDevice> googleDevices) {
+        if (googleDevices == null || googleDevices.isEmpty()) {
+            return;
+        }
+        this.addBeaconToCurrent(this.toGoogleBeaconInformationList(googleDevices));
+    }
+
+    private List<BeaconInformation> toGoogleBeaconInformationList(final List<GoogleDevice> googleDevices) {
+        if (googleDevices == null || googleDevices.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        final List<BeaconInformation> out = new ArrayList<>();
+        for (var gd : googleDevices) {
+            if (gd == null || gd.canonicId == null || gd.canonicId.isBlank()) {
+                continue;
+            }
+
+            final String beaconId = gd.canonicId.trim();
+
+            if (this.beacons.containsKey(beaconId)) {
+                continue;
+            }
+
+            final String name = (gd.name != null && !gd.name.isBlank())
+                    ? gd.name
+                    : ("Google Tag " + shortId(beaconId));
+
+            final String emoji = (gd.emoji != null && !gd.emoji.isBlank())
+                    ? gd.emoji
+                    : MapUtils.getDefaultFMDEmoji();
+
+            out.add(
+                    BeaconInformation.createFMDBeaconInformation(
+                            beaconId,
+                            "google:" + beaconId,
+                            emoji,
+                            name
+                    )
+            );
+        }
+        return out;
+    }
+
+    private Observable<List<GoogleDevice>> fetchAndStoreGoogleDevices() {
+        if (this.fmdServerService == null || this.fmdServerService.getGoogleDevices() == null) {
+            return Observable.just(Collections.emptyList());
+        }
+
+        return this.fmdServerService.getGoogleDevices()
+                .onErrorReturnItem(Collections.emptyList())
+                .map(devices -> {
+                    final long now = System.currentTimeMillis();
+                    final List<GoogleDevice> result = new ArrayList<>();
+
+                    for (var d : devices) {
+                        final String id = d.getCanonicId() != null ? d.getCanonicId().trim() : "";
+                        if (id.isBlank()) {
+                            continue;
+                        }
+
+                        final String name = (d.getName() != null && !d.getName().isBlank())
+                                ? d.getName()
+                                : ("Google Tag " + shortId(id));
+
+                        result.add(
+                                new GoogleDevice(
+                                    id,
+                                    name,
+                                    MapUtils.getDefaultFMDEmoji(),
+                                    now,
+                                    now,
+                                        false
+                                )
+                        );
+                    }
+
+                    return result;
+                })
+                .flatMap(this.beaconRepo::upsertGoogleDevices)
+                .onErrorReturnItem(Collections.emptyList());
     }
 
     private synchronized void addBeaconToCurrent(final List<BeaconInformation> newBeaconInformation) {
@@ -829,6 +963,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Log.d(TAG, "Replacing existing beacon info for beaconId=" + beaconId);
             }
             this.beacons.put(beaconId, new BeaconData(beacon, Collections.emptyList()));
+
+            // Make sure that beacon exists in beaconLocations
+            if (!this.beaconLocations.containsKey(beaconId)) {
+                this.beaconLocations.put(beaconId, new ArrayList<>());
+            }
         });
     }
 
@@ -920,21 +1059,27 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             BeaconInformation beacon = beaconData.getInfo();
             final String beaconId = beacon.getBeaconId();
 
+            // If key doesn't exist, creates it
             if (!this.beaconLocations.containsKey(beaconId)) {
-                Log.d(TAG, "No location was currently know for beacon with id " + beaconId + ". It is being skipped.");
-                continue;
+                this.beaconLocations.put(beaconId, new ArrayList<>());
             }
 
             List<BeaconLocationReport> locations = Objects.requireNonNull(this.beaconLocations.get(beaconId));
 
-            if (locations.isEmpty()) {
-                Log.d(TAG, "Did not get any location reports for beacon device with id " + beacon.getBeaconId() + ". This device will not be shown in the UI.");
-                continue;
+            // Map: Only shows marker if lastLocation exists
+            if (!locations.isEmpty()) {
+                BeaconLocationReport lastLocation = locations.get(locations.size() - 1);
+                this.showBeaconOnMap(beacon, lastLocation);
+            } else {
+                //If there was marker and now location is not found, removes it
+                Marker m = this.currentMarkers.remove(beaconId);
+                if (m != null) {
+                    m.remove();
+                }
             }
-
-            BeaconLocationReport lastLocation = locations.get(locations.size() - 1);
-            this.showBeaconOnMap(beacon, lastLocation);
         }
+
+        // ✅ Os cartões são atualizados SEMPRE (com ou sem localização)
         this.updateBeaconCards();
     }
 
@@ -1131,7 +1276,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void fetchAndUpdateCurrentBeacons() {
         var beacons = this.beacons.values().stream()
-                .collect(Collectors.toMap(b -> b.getInfo().getBeaconId(), b -> b.getInfo().getOwnedBeaconPlistRaw()));
+                .map(BeaconData::getInfo)
+                .filter(info -> info.getOwnedBeaconPlistRaw() != null && !info.getOwnedBeaconPlistRaw().isBlank())
+                .collect(Collectors.toMap(BeaconInformation::getBeaconId, BeaconInformation::getOwnedBeaconPlistRaw));
+
 
         TagCardHelper.toggleRefreshLoadingAll(this.dynamicCardsForTag, true);
 
@@ -1143,11 +1291,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     Log.d(TAG, "Refreshed location data and markers!");
                     TagCardHelper.toggleRefreshLoadingAll(this.dynamicCardsForTag, false);
                     this.showLastDeviceLocations();
-                    //Toast.makeText(this, "Refreshed location data & markers", LENGTH_SHORT).show();
                 }, error -> {
                     Log.e(TAG, "Failed to refresh current locations!", error);
                     TagCardHelper.toggleRefreshLoadingAll(this.dynamicCardsForTag, false);
-                    //Toast.makeText(this, "Failed to refresh current location markers!", LENGTH_SHORT).show();
                 });
     }
 
@@ -1155,60 +1301,74 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         final long now = System.currentTimeMillis();
 
         final int hoursToGoBack = (int) Math.min(
-                Math.ceil(((double)now - (double)this.last24HHistoryFetchAt)/(double)ONE_HOUR_IN_MS),
+                Math.ceil(((double) now - (double) this.last24HHistoryFetchAt) / (double) ONE_HOUR_IN_MS),
                 HOURS_TO_GO_BACK_24H
         );
 
         Log.d(TAG, "Preparing to fetch location reports for the last " + hoursToGoBack + " hours!");
-        return this.appleService.getLastReports(beaconIdToPlist, hoursToGoBack)
-                .doOnNext(reports -> this.last24HHistoryFetchAt = now) // on success, update this time.
+
+        final Observable<Map<String, List<BeaconLocationReport>>> appleObs =
+                this.appleService.getLastReports(beaconIdToPlist, hoursToGoBack)
+                        .onErrorReturnItem(Collections.emptyMap());
+
+        final Observable<Map<String, List<BeaconLocationReport>>> googleObs =
+                this.fmdServerService != null
+                        ? this.fmdServerService.getGoogleDevicesAsBeaconLocationReport()
+                        .onErrorReturnItem(Collections.emptyMap())
+                        : Observable.just(Collections.emptyMap());
+
+        return Observable
+                .zip(appleObs, googleObs, (appleReports, googleReports) -> {
+
+                    // 1) Make sure FMD beacons exist
+                    ensureGoogleBeaconsExistForReports(googleReports);
+
+                    // 2) Make sure FMD locations are added in beaconLocations
+                    addBeaconLocationsToCurrent(googleReports);
+
+                    // 3) Final merge (Apple + Google)
+                    return mergeReports(appleReports, googleReports);
+                })
+                .doOnNext(__ -> this.last24HHistoryFetchAt = now)
                 .flatMap(this.beaconRepo::storeToLocationCache);
     }
 
-    private Observable<Map<String, List<BeaconLocationReport>>> fetchLastReports(final Map<String, String> beaconIdToPlist, final int hoursToGoBack) {
-        Log.d(TAG, "Preparing to fetch location reports for the last " + hoursToGoBack + " hours!");
-        return this.appleService.getLastReports(beaconIdToPlist, hoursToGoBack)
-                .flatMap(this.beaconRepo::storeToLocationCache);
-    }
-
-    private Observable<Map<String, List<BeaconLocationReport>>> fetchLastReportsFor(final String beaconId, final String pList, final int hoursToGoBack) {
+    private Observable<Map<String, List<BeaconLocationReport>>> fetchLastReportsFor(final String beaconId,
+                                                                                    final String pList,
+                                                                                    final int hoursToGoBack) {
         Log.i(TAG, "Preparing to fetch location reports for the last " + hoursToGoBack + " hours!");
-        return this.appleService.getLastReports(Map.of(beaconId, pList), hoursToGoBack)
+
+        final boolean canFetchAppleForThisBeacon = (pList != null && !pList.isBlank());
+
+        final Observable<Map<String, List<BeaconLocationReport>>> appleObs =
+                canFetchAppleForThisBeacon
+                        ? this.appleService.getLastReports(Collections.singletonMap(beaconId, pList), hoursToGoBack)
+                        .onErrorReturnItem(Collections.emptyMap())
+                        : Observable.just(Collections.emptyMap());
+
+        final Observable<Map<String, List<BeaconLocationReport>>> googleObs =
+                this.fmdServerService != null
+                        ? this.fmdServerService.getGoogleDevicesAsBeaconLocationReport()
+                        .map(allGoogle -> {
+                            if (allGoogle.isEmpty()) return Collections.<String, List<BeaconLocationReport>>emptyMap();
+                            final List<BeaconLocationReport> reports = allGoogle.get(beaconId);
+                            if (reports == null) return Collections.<String, List<BeaconLocationReport>>emptyMap();
+                            final Map<String, List<BeaconLocationReport>> one = new HashMap<>();
+                            one.put(beaconId, reports);
+                            return one;
+                        })
+                        .onErrorReturnItem(Collections.emptyMap())
+                        : Observable.just(Collections.emptyMap());
+
+        return Observable
+                .zip(appleObs, googleObs, (appleReports, googleReports) -> {
+
+                    ensureGoogleBeaconsExistForReports(googleReports);
+                    addBeaconLocationsToCurrent(googleReports);
+
+                    return mergeReports(appleReports, googleReports);
+                })
                 .flatMap(this.beaconRepo::storeToLocationCache);
-    }
-
-    private boolean isAppleServiceInitialised() {
-        return this.appleService != null;
-    }
-
-    private void enableMyLocation(boolean navigateToMyLocation) {
-        // Check if permissions are granted, if so, enable the my location layer
-        if (ContextCompat.checkSelfPermission(this, ACCESS_FINE_LOCATION) == PERMISSION_GRANTED
-                || ContextCompat.checkSelfPermission(this, ACCESS_COARSE_LOCATION) == PERMISSION_GRANTED) {
-            Log.i(TAG, "Enabling 'my location' related UI features...");
-            this.map.setMyLocationEnabled(true);
-
-            // This UI button is only available if the user enables own location permissions.
-            ImageButton button = findViewById(R.id.button_my_location);
-            button.setVisibility(VISIBLE);
-
-            if (navigateToMyLocation) {
-                // smooth animate to current user's position!
-                this.animateCameraToMyLocation();
-            }
-
-            return;
-        }
-
-        // Otherwise, request location permissions from the user
-        if (ActivityCompat.shouldShowRequestPermissionRationale(this, ACCESS_FINE_LOCATION)
-                || ActivityCompat.shouldShowRequestPermissionRationale(this, ACCESS_COARSE_LOCATION)) {
-            Log.d(TAG, "We are being asked to show a rationale dialogue for why we need location permissions. Proceeding to do this...");
-            this.askForLocationWithRationale();
-        } else {
-            // Location permission has not been granted yet, request it.
-            this.performNativePermissionRequest();
-        }
     }
 
     private void performNativePermissionRequest() {
@@ -1222,17 +1382,20 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        if (requestCode != LOCATION_PERMISSION_REQUEST_CODE) {
-            super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-            return;
-        }
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode != LOCATION_PERMISSION_REQUEST_CODE) return;
 
         if (PermissionUtil.isPermissionGranted(permissions, grantResults, ACCESS_FINE_LOCATION) ||
                 PermissionUtil.isPermissionGranted(permissions, grantResults, ACCESS_COARSE_LOCATION)) {
+
             Log.i(TAG, "Permission request for location was granted");
-            this.enableMyLocation(true);
+            pendingEnableMyLocation = false; // vamos tentar já
+            applyMyLocationIfPossible(true);
+            pendingEnableMyLocation = false;
+
         } else {
-            Log.i(TAG, "Location permission request was refused, so not going to be rendering current user location");
+            Log.i(TAG, "Location permission request was refused");
         }
     }
 
@@ -1281,6 +1444,88 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .observeOn(AndroidSchedulers.mainThread());
     }
 
+    private void ensureGoogleBeaconsExistForReports(final Map<String, List<BeaconLocationReport>> googleReports) {
+        if (googleReports == null || googleReports.isEmpty()) return;
+
+        final List<BeaconInformation> toAdd = new ArrayList<>();
+
+        for (Map.Entry<String, List<BeaconLocationReport>> entry : googleReports.entrySet()) {
+            final String beaconId = entry.getKey();
+            if (beaconId == null || beaconId.isBlank()) continue;
+            if (this.beacons.containsKey(beaconId)) continue;
+
+            final List<BeaconLocationReport> reports = entry.getValue();
+            String originalName = "Google Tag " + shortId(beaconId);
+
+            if (reports != null && !reports.isEmpty()) {
+                BeaconLocationReport last = reports.get(reports.size() - 1);
+
+                // pega no description e mete em model
+                String desc = last.getDescription();
+                if (desc != null && !desc.isBlank()) {
+                    originalName = desc.trim();
+                }
+            }
+
+            toAdd.add(
+                    BeaconInformation.createFMDBeaconInformation(
+                            beaconId,
+                            "google:" + beaconId,
+                            MapUtils.getDefaultFMDEmoji(),
+                            originalName
+                    )
+            );
+        }
+
+        if (!toAdd.isEmpty()) {
+            addBeaconToCurrent(toAdd);
+        }
+    }
+
+    private boolean hasLocationPermission() {
+        return ContextCompat.checkSelfPermission(this, ACCESS_FINE_LOCATION) == PERMISSION_GRANTED
+                || ContextCompat.checkSelfPermission(this, ACCESS_COARSE_LOCATION) == PERMISSION_GRANTED;
+    }
+
+    private void applyMyLocationIfPossible(boolean navigateToMyLocation) {
+        if (map == null) {
+            pendingEnableMyLocation = true;
+            return;
+        }
+
+        if (!hasLocationPermission()) {
+            pendingEnableMyLocation = true;
+
+            // Asks permission if necessary
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this, ACCESS_FINE_LOCATION)
+                    || ActivityCompat.shouldShowRequestPermissionRationale(this, ACCESS_COARSE_LOCATION)) {
+                askForLocationWithRationale();
+            } else {
+                performNativePermissionRequest();
+            }
+            return;
+        }
+
+        // With given permission
+        try {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                return;
+            }
+            map.setMyLocationEnabled(true);
+
+            ImageButton button = findViewById(R.id.button_my_location);
+            button.setVisibility(VISIBLE);
+
+            if (navigateToMyLocation) {
+                animateCameraToMyLocation();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed enabling my location layer", e);
+            pendingEnableMyLocation = true;
+        }
+    }
+
+
     @Data
     private static final class BeaconData {
         @lombok.NonNull private BeaconInformation info;
@@ -1292,4 +1537,5 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             this.geocoding = geocoding;
         }
     }
+
 }

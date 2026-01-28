@@ -15,6 +15,7 @@ import dev.wander.android.opentagviewer.db.repo.model.ImportData;
 import dev.wander.android.opentagviewer.db.room.OpenTagViewerDatabase;
 import dev.wander.android.opentagviewer.db.room.entity.BeaconNamingRecord;
 import dev.wander.android.opentagviewer.db.room.entity.DailyHistoryFetchRecord;
+import dev.wander.android.opentagviewer.db.room.entity.GoogleDevice;
 import dev.wander.android.opentagviewer.db.room.entity.Import;
 import dev.wander.android.opentagviewer.db.room.entity.LocationReport;
 import dev.wander.android.opentagviewer.db.room.entity.OwnedBeacon;
@@ -33,6 +34,43 @@ public class BeaconRepository {
     public BeaconRepository(OpenTagViewerDatabase db) {
         this.db = db;
     }
+
+    public Observable<List<GoogleDevice>> getAllGoogleDevices() {
+        return Observable.fromCallable(() -> {
+            try {
+                return db.googleDeviceDao().getAllActive();
+            } catch (Exception e) {
+                Log.e(TAG, "Error occurred when trying to retrieve all Google devices from repository", e);
+                throw new RepoQueryException(e);
+            }
+        }).subscribeOn(Schedulers.io());
+    }
+
+    public Observable<List<GoogleDevice>> upsertGoogleDevices(final List<GoogleDevice> devices) {
+        return Observable.fromCallable(() -> {
+            try {
+                if (devices == null || devices.isEmpty()) {
+                    return devices;
+                }
+
+                final long now = System.currentTimeMillis();
+
+                for (var d: devices) {
+                    d.lastUpdate = now;
+                    if (d.addedAt <= 0) {
+                        d.addedAt = now;
+                    }
+                }
+
+                db.googleDeviceDao().insertAll(devices.toArray(new GoogleDevice[0]));
+                return devices;
+            } catch (Exception e) {
+                Log.e(TAG, "Error occurred when trying to upsert Google devices", e);
+                throw new RepoQueryException(e);
+            }
+        }).subscribeOn(Schedulers.io());
+    }
+
 
     /**
      * Insert all the data for a single import action.
@@ -122,35 +160,47 @@ public class BeaconRepository {
     public Observable<Map<String, List<BeaconLocationReport>>> storeToLocationCache(Map<String, List<BeaconLocationReport>> reportsForBeaconId) {
         return Observable.fromCallable(() -> {
             if (reportsForBeaconId.isEmpty()) {
-                // If it's empty then there's nothing to do. So just return right away.
                 return reportsForBeaconId;
             }
 
             final long now = System.currentTimeMillis();
+            // 1) Make sure each beaconId exists in OwnedBeacon (including Google)
+            for (String beaconId : reportsForBeaconId.keySet()) {
+                if (beaconId == null || beaconId.isBlank()) continue;
 
-            // flat map them all:
+                OwnedBeacon existing = db.ownedBeaconDao().getById(beaconId);
+                if (existing == null) {
+
+                    db.ownedBeaconDao().insertAll(
+                            OwnedBeacon.createNewDefaultFMDOwnedBeacon(beaconId)
+                    );
+                }
+            }
+
+            // 2) Insert location reports as usual
             LocationReport[] allRecords = reportsForBeaconId.entrySet().stream()
-                            .flatMap(kvp -> kvp.getValue().stream().map(locationReport -> LocationReport.builder()
-                                    .hashId(BeaconLocationReportHasher.getSha256HashFor(kvp.getKey(), locationReport))
-                                    .beaconId(kvp.getKey())
-                                    .publishedAt(locationReport.getPublishedAt())
-                                    .description(locationReport.getDescription())
-                                    .timestamp(locationReport.getTimestamp())
-                                    .confidence(locationReport.getConfidence())
-                                    .latitude(locationReport.getLatitude())
-                                    .longitude(locationReport.getLongitude())
-                                    .horizontalAccuracy(locationReport.getHorizontalAccuracy())
-                                    .status(locationReport.getStatus())
-                                    .lastUpdate(now)
-                                    .build()
-                            ))
-                            .toArray(LocationReport[]::new);
+                    .flatMap(kvp -> kvp.getValue().stream().map(locationReport -> LocationReport.builder()
+                            .hashId(BeaconLocationReportHasher.getSha256HashFor(kvp.getKey(), locationReport))
+                            .beaconId(kvp.getKey())
+                            .publishedAt(locationReport.getPublishedAt())
+                            .description(locationReport.getDescription())
+                            .timestamp(locationReport.getTimestamp())
+                            .confidence(locationReport.getConfidence())
+                            .latitude(locationReport.getLatitude())
+                            .longitude(locationReport.getLongitude())
+                            .horizontalAccuracy(locationReport.getHorizontalAccuracy())
+                            .status(locationReport.getStatus())
+                            .lastUpdate(now)
+                            .build()
+                    ))
+                    .toArray(LocationReport[]::new);
 
             db.locationReportDao().insertAll(allRecords);
 
             return reportsForBeaconId;
         }).subscribeOn(Schedulers.io());
     }
+
 
     public Observable<Map<String, BeaconLocationReport>> getLastLocationsForAll() {
         return Observable.fromCallable(() -> {

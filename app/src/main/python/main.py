@@ -75,63 +75,37 @@ def decodeBeaconNamingRecordCloudKitMetadata(cleanedBase64: str) -> dict:
 
     However somebody has managed to create a parser in python: https://github.com/avibrazil/NSKeyedUnArchiver
 
-    So because there's some interesting data to be extracted from this `NSKeyedArchiver`-encoded data,
-    we will extract it using python via this nice library and pass the needed data back to Java
-
-    See:
-    - https://www.mac4n6.com/blog/2016/1/1/manual-analysis-of-nskeyedarchiver-formatted-plist-files-a-review-of-the-new-os-x-1011-recent-items
-    - https://github.com/malmeloo/FindMy.py/issues/31#issuecomment-2628072362
-    - https://github.com/3breadt/dd-plist/issues/70
-
+    So because there's some interesting data to be extracted from within this plist,
+    python is used.
     """
     try:
-        data = base64.b64decode(cleanedBase64)
-        d_dict = NSKeyedUnArchiver.unserializeNSKeyedArchiver(data)
-
-        # This is actually a pretty large object, but very little of the data seems useful to our app
-
-        RecordCtime: datetime = d_dict.get("RecordCtime", None)
-        RecordMtime: datetime = d_dict.get("RecordMtime", None)
-        ModifiedByDevice: str = d_dict.get("ModifiedByDevice", None)
-
-        res = {
-            "creationTime": _toUnixEpochMs(RecordCtime),
-            "modifiedTime": _toUnixEpochMs(RecordMtime),
-            "modifiedByDevice": ModifiedByDevice
-        }
-
-        print(f"Computed result: {res}")
-
-        return res
-
+        decoded = base64.b64decode(cleanedBase64)
+        unarchiver = NSKeyedUnArchiver.NSKeyedUnArchiver(decoded)
+        output = unarchiver.decode()
+        # output is usually a dict-like structure
+        return output
     except Exception:
-        print(f"Failed to parse due to {traceback.format_exc()}")
+        print(f"Failed to decode cloudKitMetadata due to error: {traceback.format_exc()}")
         return None
 
 
-def _convertToJavaDictWrapper(method: SyncSecondFactorMethod):
+def _convertToJavaDictWrapper(method) -> dict:
+    """
+    Convert a second-factor method class instance to a dict which java can understand.
+    """
     return_obj = {
-        "obj": method
+        "type": TwoFactorMethods.UNKNOWN.value,
+        "method": method
     }
 
-    print(f"The input is {method} of class {type(method)}")
-
     if isinstance(method, TrustedDeviceSecondFactorMethod):
-        print("Option: Trusted Device 2FA method")
-
         return_obj["type"] = TwoFactorMethods.TRUSTED_DEVICE.value
 
-    elif isinstance(method, SmsSecondFactorMethod):
-        print(f"Option: SMS ({method.phone_number})")
-
+    if isinstance(method, SmsSecondFactorMethod):
         return_obj["type"] = TwoFactorMethods.PHONE.value
-        return_obj["phoneNumber"] = method.phone_number
-        return_obj["phoneNumberId"] = method.phone_number_id
 
-    else:
-        print(f"Unmapped 2FA method! (type: {type(method)})")
-
-        return_obj["type"] = TwoFactorMethods.UNKNOWN.value
+    if isinstance(method, SyncSecondFactorMethod):
+        return_obj["type"] = TwoFactorMethods.TRUSTED_DEVICE.value
 
     return return_obj
 
@@ -202,9 +176,14 @@ def getLastReports(
         hoursBack: int) -> dict:
     # JAVA typing: see https://chaquo.com/chaquopy/doc/current/python.html
     # especially this: https://chaquo.com/chaquopy/doc/current/python.html#classes
-    try:
-        res = {}
+    #
+    # IMPORTANT:
+    # - Never return None here: Chaquopy maps Python None -> Java null, which makes the Java layer
+    #   throw a generic exception and hides the real cause.
+    # - If one beacon fails, continue with the others and return partial results.
+    res = {}
 
+    try:
         num_items = idToPList.size()
         print(f"num_items is {num_items}")
 
@@ -213,34 +192,43 @@ def getLastReports(
             beaconId = pair.first
             plistContent = pair.second
 
-            print(f"Fetching report for {beaconId} for the last {hoursBack} hours...")
-            fp = BytesIO(plistContent.encode('utf-8'))
-            airtag = FindMyAccessory.from_plist(fp)
+            try:
+                print(f"Fetching report for {beaconId} for the last {hoursBack} hours...")
+                fp = BytesIO(plistContent.encode('utf-8'))
+                airtag = FindMyAccessory.from_plist(fp)
 
-            reports = account.fetch_last_reports(airtag, hoursBack)
-            print(f"Got {len(reports)} reports for {beaconId}")
+                reports = account.fetch_last_reports(airtag, hoursBack)
+                print(f"Got {len(reports)} reports for {beaconId}")
 
-            items = []
-            for report in sorted(reports):
-                items.append({
-                    "publishedAt": _toUnixEpochMs(report.published_at),
-                    "description": report.description,
-                    "timestamp": _toUnixEpochMs(report.timestamp),
-                    "confidence": report.confidence,
-                    "latitude": report.latitude,
-                    "longitude": report.longitude,
-                    "horizontalAccuracy": report.horizontal_accuracy,
-                    "status": report.status
-                })
+                items = []
+                for report in sorted(reports):
+                    items.append({
+                        "publishedAt": _toUnixEpochMs(report.published_at),
+                        "description": report.description,
+                        "timestamp": _toUnixEpochMs(report.timestamp),
+                        "confidence": report.confidence,
+                        "latitude": report.latitude,
+                        "longitude": report.longitude,
+                        "horizontalAccuracy": report.horizontal_accuracy,
+                        "status": report.status
+                    })
 
-            res[beaconId] = items
+                res[beaconId] = items
+
+            except Exception:
+                # Keep going for the remaining beacons, but log the full traceback for this one.
+                err = traceback.format_exc()
+                print(f"Failed to fetch reports for beaconId={beaconId}: {err}")
+                res[beaconId] = []
 
         return res
 
     except Exception:
+        # Something unexpected happened at the function level.
+        # Return what we have so far (or empty), but log the reason.
         err = traceback.format_exc()
         print(f"Failed to fetch all reports due to error: {err}")
-        return None
+        return res
 
 
 def getReports(
@@ -250,9 +238,11 @@ def getReports(
         unixEndMs: int) -> dict:
     # JAVA typing: see https://chaquo.com/chaquopy/doc/current/python.html
     # especially this: https://chaquo.com/chaquopy/doc/current/python.html#classes
-    try:
-        res = {}
+    #
+    # IMPORTANT: Never return None (would become Java null). Return partial results on error.
+    res = {}
 
+    try:
         num_items = idToPList.size()
         print(f"num_items is {num_items}")
 
@@ -261,39 +251,46 @@ def getReports(
             beaconId = pair.first
             plistContent = pair.second
 
-            print(f"Fetching report for {beaconId} in time range {unixStartMs}-{unixEndMs}...")
-            fp = BytesIO(plistContent.encode('utf-8'))
-            airtag = FindMyAccessory.from_plist(fp)
+            try:
+                print(f"Fetching report for {beaconId} in time range {unixStartMs}-{unixEndMs}...")
+                fp = BytesIO(plistContent.encode('utf-8'))
+                airtag = FindMyAccessory.from_plist(fp)
 
-            start: datetime = datetime.fromtimestamp(
-                unixStartMs/1000,
-                tz=timezone.utc
-            )
-            end: datetime = datetime.fromtimestamp(
-                unixEndMs/1000,
-                tz=timezone.utc
-            )
-            reports = account.fetch_reports(airtag, start, end)
-            print(f"Got {len(reports)} reports for {beaconId} for time range {unixStartMs}-{unixEndMs}")
+                start: datetime = datetime.fromtimestamp(
+                    unixStartMs/1000,
+                    tz=timezone.utc
+                )
+                end: datetime = datetime.fromtimestamp(
+                    unixEndMs/1000,
+                    tz=timezone.utc
+                )
 
-            items = []
-            for report in sorted(reports):
-                items.append({
-                    "publishedAt": _toUnixEpochMs(report.published_at),
-                    "description": report.description,
-                    "timestamp": _toUnixEpochMs(report.timestamp),
-                    "confidence": report.confidence,
-                    "latitude": report.latitude,
-                    "longitude": report.longitude,
-                    "horizontalAccuracy": report.horizontal_accuracy,
-                    "status": report.status
-                })
+                reports = account.fetch_reports(airtag, start, end)
+                print(f"Got {len(reports)} reports for {beaconId} for time range {unixStartMs}-{unixEndMs}")
 
-            res[beaconId] = items
+                items = []
+                for report in sorted(reports):
+                    items.append({
+                        "publishedAt": _toUnixEpochMs(report.published_at),
+                        "description": report.description,
+                        "timestamp": _toUnixEpochMs(report.timestamp),
+                        "confidence": report.confidence,
+                        "latitude": report.latitude,
+                        "longitude": report.longitude,
+                        "horizontalAccuracy": report.horizontal_accuracy,
+                        "status": report.status
+                    })
+
+                res[beaconId] = items
+
+            except Exception:
+                err = traceback.format_exc()
+                print(f"Failed to fetch reports for beaconId={beaconId}: {err}")
+                res[beaconId] = []
 
         return res
 
     except Exception:
         err = traceback.format_exc()
         print(f"Failed to fetch all reports due to error: {err}")
-        return None
+        return res
