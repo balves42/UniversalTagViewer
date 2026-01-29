@@ -136,7 +136,7 @@ public class BeaconRepository {
         }).subscribeOn(Schedulers.io());
     }
 
-    public Observable<List<BeaconData>> getAllBeacons() {
+    public Observable<List<BeaconData>> getAllAppleBeacons() {
         return Observable.fromCallable(() -> {
             try {
                 List<OwnedBeacon> ownedBeacons = db.ownedBeaconDao().getAll();
@@ -144,6 +144,23 @@ public class BeaconRepository {
                 List<UserBeaconOptions> userBeaconOptions = db.userBeaconOptionsDao().getAll();
 
                 return BeaconCombinerUtil.combine(ownedBeacons, beaconNamingRecords, userBeaconOptions);
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error occurred when trying to retrieve all beacons from repository", e);
+                throw new RepoQueryException(e);
+            }
+        }).subscribeOn(Schedulers.io());
+    }
+
+    public Observable<List<BeaconData>> getAllAppleAndGoogleBeacons() {
+        return Observable.fromCallable(() -> {
+            try {
+                List<OwnedBeacon> ownedBeacons = db.ownedBeaconDao().getAll();
+                List<BeaconNamingRecord> beaconNamingRecords = db.beaconNamingRecordDao().getAll();
+                List<UserBeaconOptions> userBeaconOptions = db.userBeaconOptionsDao().getAll();
+                List<GoogleDevice> googleDevices = db.googleDeviceDao().getAllActive();
+
+                return BeaconCombinerUtil.combine(ownedBeacons, beaconNamingRecords, userBeaconOptions, googleDevices);
 
             } catch (Exception e) {
                 Log.e(TAG, "Error occurred when trying to retrieve all beacons from repository", e);

@@ -84,6 +84,12 @@ public class DeviceListAdaptor extends RecyclerView.Adapter<DeviceListAdaptor.Vi
         final String beaconId = beacon.getBeaconId();
 
         viewHolder.getDeviceName().setText(beacon.getName());
+
+        // Recycler view reset
+        viewHolder.getItemEmoji().setText("");
+        viewHolder.getItemEmoji().setVisibility(GONE);
+        viewHolder.getItemImage().setVisibility(VISIBLE);
+
         if (beacon.isEmojiFilled()) {
             viewHolder.getItemEmoji().setText(beacon.getEmoji());
             viewHolder.getItemEmoji().setVisibility(VISIBLE);
@@ -92,6 +98,10 @@ public class DeviceListAdaptor extends RecyclerView.Adapter<DeviceListAdaptor.Vi
 
         // locations?
         final long now = System.currentTimeMillis();
+
+        // Recycler view reset
+        viewHolder.getWarningIcon().setVisibility(GONE);
+
         if (this.locations.containsKey(beaconId)) {
             var lastLocation = Objects.requireNonNull(this.locations.get(beaconId));
 

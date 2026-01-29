@@ -282,7 +282,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         // 1) Show devices that exist in cache
         this.loadGoogleFromDbToUi();
-        
+
+        // 2) Background update : devices + locations (FMD) -> BD -> UI
+        this.refreshGoogleFromNetworkToDbAndUi(); //TODO: Duplicated requests vs only apple devices appearing at first
+
+
         var async = this.getLastCameraPosition()
             .subscribe(pos -> {
                 Log.d(TAG, "Got previous camera position to reset us to: " + pos);
@@ -819,7 +823,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             });
 
         // get list of Beacons
-        var asyncAllBeacons = this.beaconRepo.getAllBeacons()
+        var asyncAllBeacons = this.beaconRepo.getAllAppleBeacons()
                 .flatMap(BeaconDataParser::parseAsync)
                 .doOnNext(this::addBeaconToCurrent);
 
@@ -890,7 +894,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             BeaconInformation info = BeaconInformation.createFMDBeaconInformation(
                     id,
-                    "google:" + id,
                     d.emoji,
                     d.name
             );
@@ -1464,7 +1467,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             toAdd.add(
                     BeaconInformation.createFMDBeaconInformation(
                             beaconId,
-                            "google:" + beaconId,
                             MapUtils.getDefaultFMDEmoji(),
                             originalName
                     )

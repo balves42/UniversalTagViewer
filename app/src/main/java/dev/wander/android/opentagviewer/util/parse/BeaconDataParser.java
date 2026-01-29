@@ -40,7 +40,7 @@ public final class BeaconDataParser {
 
     private static final String TYPE_DATE = "date";
 
-    public static List<BeaconInformation> parse(final List<BeaconData> rawBeaconData) {
+    private static BeaconInformation parseBeaconNamingRecord(BeaconData beaconData) {
         final XPath xPath = XPathFactory.newInstance().newXPath();
 
         try {
@@ -62,90 +62,111 @@ public final class BeaconDataParser {
             final XPathExpression vendorIdQuery = getXPathFor(xPath, "vendorId", TYPE_INTEGER);
             final XPathExpression privateKeyNodeExistsQuery = xPath.compile(XPATH_REQUIRED_PRIVATE_KEY);
 
-            var res = new ArrayList<BeaconInformation>();
-            for (var beaconData : rawBeaconData) {
-                UserBeaconOptions userOverrides = beaconData.getUserBeaconOptions();
+            UserBeaconOptions userOverrides = beaconData.getUserBeaconOptions();
+            final String beaconNamingRecordPList = beaconData.getBeaconNamingRecord().content;
+            final String ownedBeaconPList = beaconData.getOwnedBeaconInfo().content;
 
-                final String beaconNamingRecordPList = beaconData.getBeaconNamingRecord().content;
-                final String ownedBeaconPList = beaconData.getOwnedBeaconInfo().content;
-
-                // Extract the most relevant fields from decrypted plist files
-                // @ `BeaconNamingRecord/<beacon-identifier>/<some-id>.plist`
-                //
-                // Note that not all fields contained in the file are extracted here.
-                //
-                // Note also that it's not clear to me at this time why there can be
-                // multiple `<some id>.plist` files per `beacon-identifier`.
-                // In my testing thus far the directory for a single `beacon-identifier`
-                // only contained a single `<some id>.plist` file.
-                final Document beaconNamingData = XmlParser.parse(beaconNamingRecordPList);
-                final String beaconNamingRecordIdentifier = getString(beaconNamingData, identifierQuery);
-                final String associatedBeacon = getString(beaconNamingData, associatedBeaconQuery);
-                final String emoji = getString(beaconNamingData, emojiQuery);
-                final String name = getString(beaconNamingData, nameQuery);
-                // nested PLIST evaluation (this contains some useful info)
-                var metaData = BeaconNamingRecordInnerParser.extractBeaconNamingRecordMetadata(xPath, beaconNamingData);
+            // Extract the most relevant fields from decrypted plist files
+            // @ `BeaconNamingRecord/<beacon-identifier>/<some-id>.plist`
+            //
+            // Note that not all fields contained in the file are extracted here.
+            //
+            // Note also that it's not clear to me at this time why there can be
+            // multiple `<some id>.plist` files per `beacon-identifier`.
+            // In my testing thus far the directory for a single `beacon-identifier`
+            // only contained a single `<some id>.plist` file.
+            final Document beaconNamingData = XmlParser.parse(beaconNamingRecordPList);
+            final String beaconNamingRecordIdentifier = getString(beaconNamingData, identifierQuery);
+            final String associatedBeacon = getString(beaconNamingData, associatedBeaconQuery);
+            final String emoji = getString(beaconNamingData, emojiQuery);
+            final String name = getString(beaconNamingData, nameQuery);
+            // nested PLIST evaluation (this contains some useful info)
+            var metaData = BeaconNamingRecordInnerParser.extractBeaconNamingRecordMetadata(xPath, beaconNamingData);
 
 
-                // Extract the most relevant fields from decrypted plist files
-                //    @ `OwnedBeacons/<beacon identifier>.plist`
-                //
-                // Note that not all fields are being extracted here
-                // (particularly the sensitive ones were skipped)
+            // Extract the most relevant fields from decrypted plist files
+            //    @ `OwnedBeacons/<beacon identifier>.plist`
+            //
+            // Note that not all fields are being extracted here
+            // (particularly the sensitive ones were skipped)
 
-                // assert that private key node exists!
-                final Document ownedBeacon = XmlParser.parse(ownedBeaconPList);
+            // assert that private key node exists!
+            final Document ownedBeacon = XmlParser.parse(ownedBeaconPList);
 
-                if (!isNodeNotEmpty(ownedBeacon, privateKeyNodeExistsQuery)) {
-                    Log.e(TAG, "Could not locate 'privateKey' node for beaconId=" + beaconData.getBeaconId() + "! This will likely lead to downstream errors later...");
-                    // TODO: for now this is not blocking, but maybe it should be?
-                }
-
-                final int batteryLevel = getInteger(ownedBeacon, batteryLevelQuery);
-                final String model = getString(ownedBeacon, modelQuery);
-                final String pairingDate = getString(ownedBeacon, pairingDateQuery);
-                final int productId = getInteger(ownedBeacon, productIdQuery);
-                final String stableIdentifier = getString(ownedBeacon, stableIdentifierQuery);
-                final String systemVersion = getString(ownedBeacon, systemVersionQuery);
-                final int vendorId = getInteger(ownedBeacon, vendorIdQuery);
-
-                var extractedData = BeaconInformation.builder()
-                        // BeaconNamingRecord
-                        .beaconId(associatedBeacon)
-                        .namingRecordId(beaconNamingRecordIdentifier)
-                        .originalEmoji(emoji)
-                        .originalName(name)
-                        // BeaconNamingRecord->cloudKitMetadata
-                        .namingRecordModifiedTime(
-                                metaData.map(BeaconNamingRecordCloudKitMetadata::getModifiedTime).orElse(null))
-                        .namingRecordCreationTime(
-                                metaData.map(BeaconNamingRecordCloudKitMetadata::getCreationTime).orElse(null))
-                        .namingRecordModifiedByDevice(
-                                metaData.map(BeaconNamingRecordCloudKitMetadata::getModifiedByDevice).orElse(null))
-                        // OwnedBeacon
-                        .batteryLevel(batteryLevel)
-                        .model(model)
-                        .pairingDate(pairingDate)
-                        .productId(productId)
-                        .stableIdentifier(List.of(stableIdentifier))
-                        .systemVersion(systemVersion)
-                        .vendorId(vendorId)
-                        .ownedBeaconPlistRaw(ownedBeaconPList);
-
-                if (userOverrides != null) {
-                    // configure user overrides too
-                    extractedData.userOverrideName(userOverrides.uiName)
-                            .userOverrideEmoji(userOverrides.uiEmoji);
-                }
-
-                res.add(extractedData.build());
+            if (!isNodeNotEmpty(ownedBeacon, privateKeyNodeExistsQuery)) {
+                Log.e(TAG, "Could not locate 'privateKey' node for beaconId=" + beaconData.getBeaconId() + "! This will likely lead to downstream errors later...");
+                // TODO: for now this is not blocking, but maybe it should be?
             }
 
-            return res;
+            final int batteryLevel = getInteger(ownedBeacon, batteryLevelQuery);
+            final String model = getString(ownedBeacon, modelQuery);
+            final String pairingDate = getString(ownedBeacon, pairingDateQuery);
+            final int productId = getInteger(ownedBeacon, productIdQuery);
+            final String stableIdentifier = getString(ownedBeacon, stableIdentifierQuery);
+            final String systemVersion = getString(ownedBeacon, systemVersionQuery);
+            final int vendorId = getInteger(ownedBeacon, vendorIdQuery);
+
+            var extractedData = BeaconInformation.builder()
+                    // BeaconNamingRecord
+                    .beaconId(associatedBeacon)
+                    .namingRecordId(beaconNamingRecordIdentifier)
+                    .originalEmoji(emoji)
+                    .originalName(name)
+                    // BeaconNamingRecord->cloudKitMetadata
+                    .namingRecordModifiedTime(
+                            metaData.map(BeaconNamingRecordCloudKitMetadata::getModifiedTime).orElse(null))
+                    .namingRecordCreationTime(
+                            metaData.map(BeaconNamingRecordCloudKitMetadata::getCreationTime).orElse(null))
+                    .namingRecordModifiedByDevice(
+                            metaData.map(BeaconNamingRecordCloudKitMetadata::getModifiedByDevice).orElse(null))
+                    // OwnedBeacon
+                    .batteryLevel(batteryLevel)
+                    .model(model)
+                    .pairingDate(pairingDate)
+                    .productId(productId)
+                    .stableIdentifier(List.of(stableIdentifier))
+                    .systemVersion(systemVersion)
+                    .vendorId(vendorId)
+                    .ownedBeaconPlistRaw(ownedBeaconPList);
+
+            if (userOverrides != null) {
+                // configure user overrides too
+                extractedData.userOverrideName(userOverrides.uiName)
+                        .userOverrideEmoji(userOverrides.uiEmoji);
+            }
+
+            return extractedData.build();
 
         } catch (Exception e) {
             throw new BeaconDataParsingException("Failed to parse data for beacons", e);
         }
+    }
+
+    private static BeaconInformation parseGoogleDevice(BeaconData beaconData) {
+        BeaconInformation beaconInformation = BeaconInformation.createFMDBeaconInformation(
+                beaconData.getGoogleDevice().canonicId,
+                beaconData.getGoogleDevice().emoji,
+                beaconData.getGoogleDevice().name
+        );
+        UserBeaconOptions userOverrides = beaconData.getUserBeaconOptions();
+        if (userOverrides != null) {
+            beaconInformation.setUserOverrideName(userOverrides.uiName);
+            beaconInformation.setUserOverrideEmoji(userOverrides.uiEmoji);
+        }
+        return beaconInformation;
+    }
+
+    public static List<BeaconInformation> parse(final List<BeaconData> rawBeaconData) {
+            List<BeaconInformation> list = new ArrayList<>();
+            for (var beaconData : rawBeaconData) {
+                if (beaconData.getGoogleDevice() != null) {
+                    list.add(parseGoogleDevice(beaconData));§
+                } else {
+                    list.add(parseBeaconNamingRecord(beaconData));
+                }
+            }
+            return list;
+
     }
 
     public static Observable<List<BeaconInformation>> parseAsync(final List<BeaconData> rawBeaconData) {

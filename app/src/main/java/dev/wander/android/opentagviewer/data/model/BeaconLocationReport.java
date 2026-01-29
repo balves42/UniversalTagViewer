@@ -76,4 +76,17 @@ public class BeaconLocationReport {
         this.horizontalAccuracy = horizontalAccuracy;
         this.status = status;
     }
+
+    public static BeaconLocationReport createFMDBeaconLocationReport(double latitude, double longitude, long timeStamp, boolean ok){
+        return new BeaconLocationReport(
+                timeStamp,
+                "Google FMD",
+                timeStamp,
+                ok ? 3 : 0,
+                latitude,
+                longitude,
+                50,
+                ok ? 1 : 0
+        );
+    }
 }

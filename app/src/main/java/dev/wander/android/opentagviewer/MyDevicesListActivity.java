@@ -26,14 +26,11 @@ import dev.wander.android.opentagviewer.databinding.ActivityMyDevicesListBinding
 import dev.wander.android.opentagviewer.db.datastore.UserSettingsDataStore;
 import dev.wander.android.opentagviewer.db.repo.BeaconRepository;
 import dev.wander.android.opentagviewer.db.repo.UserSettingsRepository;
-import dev.wander.android.opentagviewer.db.repo.model.UserSettings;
 import dev.wander.android.opentagviewer.db.room.OpenTagViewerDatabase;
 import dev.wander.android.opentagviewer.service.web.CronetProvider;
 import dev.wander.android.opentagviewer.service.web.FMDServerService;
-import dev.wander.android.opentagviewer.service.web.FMDServerService.GoogleDeviceResponse;
 import dev.wander.android.opentagviewer.ui.compat.WindowPaddingUtil;
 import dev.wander.android.opentagviewer.ui.mydevices.DeviceListAdaptor;
-import dev.wander.android.opentagviewer.ui.settings.SharedMainSettingsManager;
 import dev.wander.android.opentagviewer.util.parse.BeaconDataParser;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Observable;
@@ -154,7 +151,7 @@ public class MyDevicesListActivity extends AppCompatActivity {
     private void fetchDeviceInfoAndRender() {
         var asyncLocations = this.beaconRepo.getLastLocationsForAll();
 
-        var asyncBeacons = this.beaconRepo.getAllBeacons()
+        var asyncBeacons = this.beaconRepo.getAllAppleAndGoogleBeacons()
                 .flatMap(BeaconDataParser::parseAsync);
 
         var async = Observable.zip(asyncBeacons, asyncLocations, Pair::create)
@@ -164,7 +161,9 @@ public class MyDevicesListActivity extends AppCompatActivity {
                     this.beaconInfo.addAll(beaconsAndLocations.first);
                     this.locations.putAll(beaconsAndLocations.second);
                     deviceListAdaptor.notifyItemRangeInserted(0, this.beaconInfo.size());
-                }, error -> Log.e(TAG, "Failure retrieving beacons and latest stored locations for beacon"));
+                }, error ->
+                        Log.e(TAG, "Failure retrieving beacons and latest stored locations for beacon")
+                );
     }
 
     private void onDeviceClicked(final BeaconInformation clickedDevice) {

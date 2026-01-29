@@ -127,7 +127,6 @@ public class DeviceInfoActivity extends AppCompatActivity {
                     .zipWith(optsMaybe, (googleDevice, optsOpt) -> {
                         BeaconInformation info = BeaconInformation.createFMDBeaconInformation(
                                 beaconId,
-                                "google:" + beaconId,
                                 googleDevice.emoji,
                                 googleDevice.name
                         );

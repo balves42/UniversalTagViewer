@@ -7,6 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import com.google.net.cronet.okhttptransport.CronetCallFactory
 import dev.wander.android.opentagviewer.data.model.BeaconLocationReport
 import dev.wander.android.opentagviewer.db.repo.model.UserSettings
+import dev.wander.android.opentagviewer.util.Utils
 import io.reactivex.rxjava3.core.Observable
 import io.reactivex.rxjava3.schedulers.Schedulers
 import okhttp3.OkHttpClient
@@ -191,7 +192,7 @@ class FMDServerService(
         if (lat == null || lon == null) return emptyList()
 
         val ok: Boolean = (locate.ok == true)
-        val timeMs: Long = parseTimeToEpochMs(locate.time)
+        val timeMs: Long = Utils().parseTimeToEpochMs(locate.time)
 
         val report = BeaconLocationReport(
             timeMs,
@@ -205,25 +206,6 @@ class FMDServerService(
         )
 
         return listOf(report)
-    }
-
-    private fun parseTimeToEpochMs(time: String?): Long {
-        val t = time?.trim().orEmpty()
-        if (t.isEmpty()) return 0L
-
-        val asLong = t.toLongOrNull()
-        if (asLong != null) {
-            return if (asLong in 1L..9_999_999_999L) asLong * 1000L else asLong
-        }
-
-        return try {
-            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
-            sdf.timeZone = java.util.TimeZone.getTimeZone("UTC") // ou TimeZone.getDefault()
-            val date = sdf.parse(t)
-            date?.time ?: 0L
-        } catch (_: Exception) {
-            0L
-        }
     }
 
     private fun builder(

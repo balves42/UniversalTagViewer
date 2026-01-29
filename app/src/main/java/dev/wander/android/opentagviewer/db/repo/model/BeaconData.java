@@ -1,6 +1,7 @@
 package dev.wander.android.opentagviewer.db.repo.model;
 
 import dev.wander.android.opentagviewer.db.room.entity.BeaconNamingRecord;
+import dev.wander.android.opentagviewer.db.room.entity.GoogleDevice;
 import dev.wander.android.opentagviewer.db.room.entity.OwnedBeacon;
 import dev.wander.android.opentagviewer.db.room.entity.UserBeaconOptions;
 import lombok.AllArgsConstructor;
@@ -16,4 +17,19 @@ public class BeaconData {
      * Optional, only if configured
      */
     private final UserBeaconOptions userBeaconOptions;
+    private GoogleDevice googleDevice = null;
+
+    public BeaconData(String beaconId, OwnedBeacon ownedBeaconInfo, BeaconNamingRecord beaconNamingRecord, UserBeaconOptions userBeaconOptions) {
+        this.beaconId = beaconId;
+        this.ownedBeaconInfo = ownedBeaconInfo;
+        this.beaconNamingRecord = beaconNamingRecord;
+        this.userBeaconOptions = userBeaconOptions;
+    }
+    public BeaconData(String beaconId, OwnedBeacon ownedBeaconInfo, BeaconNamingRecord beaconNamingRecord, GoogleDevice googleDevice, UserBeaconOptions userBeaconOptions) {
+        this.beaconId = beaconId;
+        this.ownedBeaconInfo = ownedBeaconInfo;
+        this.beaconNamingRecord = beaconNamingRecord;
+        this.googleDevice = googleDevice;
+        this.userBeaconOptions = userBeaconOptions;
+    }
 }

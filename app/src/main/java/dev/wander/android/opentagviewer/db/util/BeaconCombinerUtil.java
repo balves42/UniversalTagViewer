@@ -10,6 +10,7 @@ import dev.wander.android.opentagviewer.data.model.BeaconLocationReport;
 import dev.wander.android.opentagviewer.db.repo.model.BeaconData;
 import dev.wander.android.opentagviewer.db.repo.model.ImportData;
 import dev.wander.android.opentagviewer.db.room.entity.BeaconNamingRecord;
+import dev.wander.android.opentagviewer.db.room.entity.GoogleDevice;
 import dev.wander.android.opentagviewer.db.room.entity.OwnedBeacon;
 import dev.wander.android.opentagviewer.db.room.entity.UserBeaconOptions;
 import dev.wander.android.opentagviewer.util.BeaconLocationReportHasher;
@@ -38,6 +39,42 @@ public final class BeaconCombinerUtil {
                         idToOptionsMap.getOrDefault(namingRec.id, null)
                 ))
                 .collect(Collectors.toList());
+    }
+
+    public static List<BeaconData> combine(
+            final List<OwnedBeacon> ownedBeacons,
+            final List<BeaconNamingRecord> beaconNamingRecords,
+            final List<UserBeaconOptions> userBeaconOptions,
+            final List<GoogleDevice> googleDevices) {
+
+        Map<String, OwnedBeacon> idToBeaconMap = ownedBeacons.stream()
+                .collect(Collectors.toMap((beacon) -> beacon.id, beacon -> beacon));
+
+        Map<String, UserBeaconOptions> idToOptionsMap = userBeaconOptions.stream()
+                .collect(Collectors.toMap((options) -> options.beaconId, options -> options));
+
+
+        List<BeaconData> appleList = beaconNamingRecords.stream()
+                .map(namingRec -> new BeaconData(
+                        namingRec.id,
+                        idToBeaconMap.get(namingRec.id),
+                        namingRec,
+                        idToOptionsMap.getOrDefault(namingRec.id, null)
+                ))
+                .collect(Collectors.toList());
+
+        for (GoogleDevice device : googleDevices) {
+            appleList.add(
+                    new BeaconData(
+                            device.canonicId,
+                            idToBeaconMap.get(device.canonicId),
+                            null,
+                            device,
+                            idToOptionsMap.getOrDefault(device.canonicId, null)
+                    )
+            );
+        }
+        return appleList;
     }
 
     public static List<BeaconData> combine(final ImportData beaconData) {

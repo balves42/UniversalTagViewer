@@ -193,13 +193,12 @@ public class BeaconInformation {
 
     public static BeaconInformation createFMDBeaconInformation(
             String beaconId,
-            String namingRecordId,
             String originalEmoji,
             String originalName
     ) {
         return new BeaconInformation(
                 beaconId,
-                namingRecordId,
+                "google:" + beaconId,
                 originalEmoji,
                 originalName,
                 null,
