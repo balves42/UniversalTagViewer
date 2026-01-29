@@ -160,8 +160,8 @@ public final class BeaconDataParser {
             List<BeaconInformation> list = new ArrayList<>();
             for (var beaconData : rawBeaconData) {
                 if (beaconData.getGoogleDevice() != null) {
-                    list.add(parseGoogleDevice(beaconData));§
-                } else {
+                    list.add(parseGoogleDevice(beaconData));
+                } else if (beaconData.getBeaconNamingRecord() != null){
                     list.add(parseBeaconNamingRecord(beaconData));
                 }
             }

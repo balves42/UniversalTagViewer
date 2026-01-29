@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import dev.wander.android.opentagviewer.data.model.BeaconInformation;
 import dev.wander.android.opentagviewer.data.model.BeaconLocationReport;
 import dev.wander.android.opentagviewer.db.repo.model.BeaconData;
 import dev.wander.android.opentagviewer.db.repo.model.ImportData;
@@ -187,16 +188,28 @@ public class BeaconRepository {
             if (ownedBeacon == null) {
                 return null;
             }
-
-            BeaconNamingRecord namingRecord = db.beaconNamingRecordDao().getByBeaconId(beaconId);
             UserBeaconOptions userBeaconOptions = db.userBeaconOptionsDao().getById(beaconId);
 
-            return new BeaconData(
-                    ownedBeacon.id,
-                    ownedBeacon,
-                    namingRecord,
-                    userBeaconOptions
-            );
+            // Apple
+            if (ownedBeacon.importId != null) {
+                BeaconNamingRecord namingRecord = db.beaconNamingRecordDao().getByBeaconId(beaconId);
+
+                return new BeaconData(
+                        ownedBeacon.id,
+                        ownedBeacon,
+                        namingRecord,
+                        userBeaconOptions
+                );
+            } else { // Google
+                GoogleDevice googleDevice = db.googleDeviceDao().getGoogleDeviceById(beaconId);
+                return new BeaconData(
+                        googleDevice.canonicId,
+                        ownedBeacon,
+                        null,
+                        googleDevice,
+                        userBeaconOptions
+                );
+            }
         }).subscribeOn(Schedulers.io());
     }
 
