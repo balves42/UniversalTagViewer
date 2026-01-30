@@ -44,6 +44,38 @@ class FMDServerService(
         return builder(userSettings?.fmdServerUrl)?.getGoogleDevices(auth)?.subscribeOn(Schedulers.io())
     }
 
+    fun getGoogleHistory(canonicId: String, startTimeUnixMS: Long, endTimeUnixMS: Long, limit: Int? = null): Observable<List<BeaconLocationReport>>? {
+        val auth = buildBasicAuthHeader(userSettings?.fmdEmail, userSettings?.fmdPassword)
+        val request = GoogleHistoryRequest(
+            canonicId,
+            startTimeUnixMS,
+            endTimeUnixMS,
+            limit
+        )
+        //return builder(userSettings?.fmdServerUrl)?.getGoogleHistory(auth, request)?.subscribeOn(Schedulers.io())
+        return builder(userSettings?.fmdServerUrl)
+            ?.getGoogleHistory(auth, request)
+            ?.subscribeOn(Schedulers.io())
+            ?.map { list ->
+                list.map { it.toBeaconLocationReport() }
+            }
+    }
+
+    //TODO: avoid !!
+    private fun GoogleHistoryResponse.toBeaconLocationReport(): BeaconLocationReport {
+        return BeaconLocationReport(
+            this.publishedAt!!,
+            "Google FMD",
+            this.timestamp!!,
+            3,
+            this.latitude!!,
+            this.longitude!!,
+            50,
+            1
+        )
+
+    }
+
     fun locateGoogleDevice(canonicId: String): Observable<GoogleLocateResponse>? {
         val auth = buildBasicAuthHeader(userSettings?.fmdEmail, userSettings?.fmdPassword)
         val googleLocateRequest = GoogleLocateRequest(canonicId);
@@ -282,6 +314,30 @@ class FMDServerService(
         val time: String? = null,
     )
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    data class GoogleHistoryRequest(
+        @field:JsonProperty("canonic_id")
+        var canonicId: String? = null,
+        @field:JsonProperty("startTimeUnixMS")
+        var startTimeUnixMS: Long? = null,
+        @field:JsonProperty("endTimeUnixMS")
+        var endTimeUnixMS: Long? = null,
+        @field:JsonProperty("limit")
+        var limit: Int? = null //default: 5000
+    )
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    data class GoogleHistoryResponse(
+        @field:JsonProperty("publishedAt")
+        var publishedAt: Long? = null,
+        @field:JsonProperty("timestamp")
+        var timestamp: Long? = null,
+        @field:JsonProperty("latitude")
+        var latitude: Double? = null,
+        @field:JsonProperty("longitude")
+        var longitude: Double? = null
+    )
+
     interface FMDServer {
         @GET("health")
         fun getHealth(@Header("Authorization") authorization: String?): Observable<FMDServerHealthData>
@@ -291,6 +347,10 @@ class FMDServerService(
 
         @POST("google/locate")
         fun locateGoogleDevice(@Header("Authorization") authorization: String?, @Body body: GoogleLocateRequest): Observable<GoogleLocateResponse>
+
+        @POST("google/history")
+        fun getGoogleHistory(@Header("Authorization") authorization: String?, @Body body: GoogleHistoryRequest?): Observable<List<GoogleHistoryResponse>>
+
     }
 
 }

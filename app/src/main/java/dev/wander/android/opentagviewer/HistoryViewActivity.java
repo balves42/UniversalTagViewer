@@ -22,9 +22,6 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.databinding.DataBindingUtil;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -77,6 +74,8 @@ import dev.wander.android.opentagviewer.db.room.OpenTagViewerDatabase;
 import dev.wander.android.opentagviewer.db.room.entity.DailyHistoryFetchRecord;
 import dev.wander.android.opentagviewer.db.util.BeaconCombinerUtil;
 import dev.wander.android.opentagviewer.python.PythonAppleService;
+import dev.wander.android.opentagviewer.service.web.CronetProvider;
+import dev.wander.android.opentagviewer.service.web.FMDServerService;
 import dev.wander.android.opentagviewer.ui.compat.WindowPaddingUtil;
 import dev.wander.android.opentagviewer.ui.history.HistoryItemsAdapter;
 import dev.wander.android.opentagviewer.util.parse.BeaconDataParser;
@@ -139,6 +138,7 @@ public class HistoryViewActivity extends AppCompatActivity implements OnMapReady
 
     private BottomSheetBehavior<View> bottomSheetBehavior;
 
+    private FMDServerService fmdServerService;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -168,6 +168,9 @@ public class HistoryViewActivity extends AppCompatActivity implements OnMapReady
                 .flatMap(data -> BeaconDataParser.parseAsync(List.of(data)))
                 .map(items -> items.get(0))
                 .blockingFirst();
+
+        var cronet = CronetProvider.getInstance(this.getApplicationContext());
+        this.fmdServerService = new FMDServerService(cronet, this.userSettings);
 
         ActivityHistoryViewBinding binding = DataBindingUtil.setContentView(this, R.layout.activity_history_view);
         WindowPaddingUtil.insertUITopPadding(binding.getRoot());
@@ -320,10 +323,8 @@ public class HistoryViewActivity extends AppCompatActivity implements OnMapReady
                 });
     }
 
-    private Observable<List<BeaconLocationReport>> fetchReports(final long beginningOfDay, final long endOfDay, final String cacheKey) {
+    private Observable<List<BeaconLocationReport>> fetchReportsApple(final long beginningOfDay, final long endOfDay, final String cacheKey, final Map<String, String> reqData) {
         final boolean isForToday = this.daysBack == 0;
-
-        var reqData = Map.of(this.beaconId, this.beaconInformation.getOwnedBeaconPlistRaw());
         var asyncReq = this.appleService.getReportsBetween(reqData, beginningOfDay, endOfDay);
 
         final long now = System.currentTimeMillis();
@@ -370,6 +371,32 @@ public class HistoryViewActivity extends AppCompatActivity implements OnMapReady
                 .flatMap(this.beaconRepo::storeToLocationCache)
                 .map(locations -> locations.get(beaconId))
                 .subscribeOn(Schedulers.computation());
+    }
+
+    @SuppressLint("CheckResult")
+    private Observable<List<BeaconLocationReport>> fetchReportsFMD(final long beginningOfDay, final long endOfDay, final String cacheKey) {
+        final boolean isForToday = this.daysBack == 0;
+        return Objects.requireNonNull(this.fmdServerService
+                        .getGoogleHistory(this.beaconId, beginningOfDay, endOfDay, 5000))
+                // cache em memória tal como Apple
+                .doOnNext(reports -> {
+                    if (!isForToday) {
+                        MEMORY_REPORTS_CACHE.put(cacheKey, reports);
+                    }
+                })
+                .flatMap(reports ->
+                        this.storeLocationFetchToLocalDb(isForToday, beaconId, beginningOfDay)
+                                .andThen(Observable.just(reports))
+                )
+                .subscribeOn(Schedulers.computation());
+    }
+    private Observable<List<BeaconLocationReport>> fetchReports(final long beginningOfDay, final long endOfDay, final String cacheKey) {
+        var reqData = Map.of(this.beaconId, this.beaconInformation.getOwnedBeaconPlistRaw());
+        if (Objects.equals(this.beaconInformation.getModel(), "Google FMD")) {
+            return fetchReportsFMD(beginningOfDay, endOfDay, cacheKey);
+        } else {
+            return fetchReportsApple(beginningOfDay, endOfDay, cacheKey, reqData);
+        }
     }
 
     private Completable storeLocationFetchToLocalDb(final boolean isForToday, final String beaconId, final long startTime) {
